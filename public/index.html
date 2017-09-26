@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta http-equiv="X-UA-Compatible" content="ie=edge">
+        <link rel="shortcut icon" href="resources/cheese.ico" /> 
+        <link rel="stylesheet" href="resources/styles.css"/>
+        <title>AsteroidsMP</title>
+        <script src="/socket.io/socket.io.js"></script>
+        <script src="resources/main.js"></script>
+    </head>
+    <body>
+        <canvas width="200px" height="300px">
+        </canvas>
+        <div id="loginBox">
+            <form>
+                <h1>Login</h1>
+                <input type="text" placeholder="Enter your name...">
+                <button type="submit">Start</button>
+            </form>
+        </div>
+        <div id="chatBox" class="closed">
+            <div id="messageList">
+                <ul>
+                </ul>
+            </div>
+            <div id="messageCreate">
+                <form>
+                    <input type="text" placeholder="Type a message...">
+                    <button type="submit">Send</button>
+                </form>
+            </div>
+        </div>
+    </body>
+</html>

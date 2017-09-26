@@ -1,0 +1,41 @@
+@import url('https://fonts.googleapis.com/css?family=Open+Sans:300,400');
+
+html, body { min-height: 100%; }
+body { height: 100%; }
+
+div, html, body, ul, li, h1, h2, h3, h4, p, a, button, input { padding: 0; margin: 0; font-family: 'Open Sans', sans-serif; font-weight: 300; color: #fff; }
+button, input { display: block; border: none; background: none; color: #fff; margin: 0; }
+button { cursor: pointer; font-size: 20px; text-align: center; }
+input { font-size: 16px; padding: 4px 8px; }
+button:focus { outline: 0; }
+button:active { font-weight: 400; }
+input:focus { outline: 0; }
+body { background-color: rgba(25, 25, 25, 1); }
+canvas { position: absolute; }
+
+#loginBox { display: table-row; position: fixed; top: 50%; left: 50%; width: 250px; margin: -67px 0 0 -126px; border: 1px solid #e2e2e2; border-radius: 4px; }
+#loginBox > form > h1 { display: table-cell; width: 250px; height: 50px; text-align: center; user-select: none; cursor: default; }
+#loginBox > form > input { display: table-cell; width: 234px; height: 32px; border-top: 1px solid #e2e2e2; border-bottom: 1px solid #e2e2e2; }
+#loginBox > form > button { display: table-cell; width: 250px; height: 40px; border: 0; }
+
+#chatBox { width: 500px; height: 300px; border: 1px solid #e2e2e2; border-radius: 4px; position: fixed; bottom: 4px; left: 4px;  overflow: hidden; background-color: rgba(40, 40, 40, 0.25); }
+#chatBox.closed { border: none; background: none; padding: 1px 1px 2px 1px; pointer-events: none; }
+#chatBox.closed > #messageCreate  { border: none; visibility: hidden; }
+#chatBox.closed > #messageList > ul { overflow: hidden; user-select: none; cursor: default; }
+#chatBox.closed > #messageCreate > input { border: none; }
+
+#messageList { position: relative; height: 260px; }
+#messageList > ul { position: absolute; bottom: 0; list-style: none; width: 488px; max-height: 248px; padding: 6px; overflow: auto; }
+#messageList > ul > li { width: 100%; word-break: break-word; }
+#messageList > ::-webkit-scrollbar { background: none; width: 10px; }
+#messageList > ::-webkit-scrollbar-track { background: none; }
+#messageList > ::-webkit-scrollbar-track-piece { background: none; }
+#messageList > ::-webkit-scrollbar-thumb { background-color: rgba(226, 226, 226, 0.25); border-radius: 4px; }
+#messageList > ::-webkit-scrollbar-thumb:hover { background-color: rgba(160, 160, 160, 0.7); }
+#messageList > ::-webkit-scrollbar-corner { background: none; }
+
+#messageCreate { height: 40px; border-top: 1px solid #e2e2e2; }
+#messageCreate > form > input { float: left; width: 403px; height: 32px; border-right: 1px solid #e2e2e2; }
+#messageCreate > form > button { float: left; width: 80px; height: 40px;  }
+
+.hidden { display: none !important; }
