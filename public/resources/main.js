@@ -561,6 +561,20 @@ function RecieveUpdate(data) {
         }
     }
 
+    if (data.hasOwnProperty('objs')) {
+        for (var i in data.objs) {
+            if (data.objs.hasOwnProperty(i)) {
+                gameObjects[i] = data.objs[i];
+            }
+        }
+
+        for (var i in gameObjects) {
+            if (!data.objs.hasOwnProperty(i)) {
+                delete gameObjects[i];
+            }
+        }
+    }
+
     if (data.hasOwnProperty('user')) {
         user.ship.pos = data.user.pos;
         user.ship.ship.pos = data.user.pos;
@@ -578,10 +592,11 @@ socket.on('update_player', RecieveUpdate);
 // Game Objects
 var user = new PlayerInput();
 var plys = {};
+var gameObjects = {};
 var asteroids = {};
 
-for (var i = 0; i < 0; i++) {
-    asteroids.push(new Asteroid());
+for (var i = 0; i < 256; i++) {
+    asteroids[i] = new Asteroid();
     asteroids[i].visObj.pos.x = (Math.random() * 2 - 1) * svSettings.grid.center.x;
     asteroids[i].visObj.pos.y = (Math.random() * 2 - 1) * svSettings.grid.center.y;
 }
