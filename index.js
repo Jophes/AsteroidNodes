@@ -276,6 +276,12 @@ function Tick() {
     for (var obj in gameObjects) {
         if (gameObjects.hasOwnProperty(obj)) {
             gameObjects[obj].tick(realDeltaTime);
+            if (gameObjects[obj].hasOwnProperty('life')) { // Object is projectile
+                if (gameObjects[obj].life <= 0) {
+                    gameObjects[obj].destroy();
+                    delete gameObjects[obj];
+                }
+            }
         }
     }
 

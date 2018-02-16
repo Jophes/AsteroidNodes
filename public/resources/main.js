@@ -589,7 +589,17 @@ function RecieveUpdate(data) {
     }
 
     if (data.hasOwnProperty('objs')) {
-        
+        for (var i in data.objs) {
+            if (data.objs.hasOwnProperty(i)) {
+                gameObjects[i] = data.objs[i];
+            }
+        }
+
+        for (var i in gameObjects) {
+            if (!data.objs.hasOwnProperty(i)) {
+                delete gameObjects[i];
+            }
+        }
     }
 
     if (data.hasOwnProperty('user')) {
