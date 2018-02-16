@@ -61,10 +61,12 @@ const svSettings = {
     },
     projectile: {
         lifetime: 2.5,
-        firerate: 0.75
+        fireRate: 0.25
     }
 };
 // ---- CONFIG END -----
+
+var OBJECT_TYPE = { OBJECT: 0, PROJECTILE: 1, ASTEROID: 2 };
 
 const responses = {
     login: { 
@@ -178,9 +180,11 @@ app.use(HandleHomeGetRequest);
 // Object constructors-
 function GameObject() {
     var self = this;
+
     this.oId = GenerateObjectId();
 
     this.obj = { 
+        type: OBJECT_TYPE.OBJECT,
         pos: { x: 0, y: 0 },
         vel: { x: 0, y: 0 }
     }
@@ -204,9 +208,21 @@ function Projectile() {
     GameObject.call(this);
 
     var self = this;
+
     this.pOwn = null;
 
     this.life = svSettings.projectile.lifetime;
+
+    Object.defineProperty(self, 'type', {
+        get: function() {
+            return self.obj.type;
+        },
+        set: function(value) {
+            self.obj.type = value;
+        }
+    });
+
+    this.type = OBJECT_TYPE.PROJECTILE;
 
     this.objTick = this.tick;
     this.tick = function(realDeltaTime) {
@@ -273,13 +289,13 @@ function Tick() {
     }
 
     // Update projectile positions
-    for (var obj in gameObjects) {
-        if (gameObjects.hasOwnProperty(obj)) {
-            gameObjects[obj].tick(realDeltaTime);
-            if (gameObjects[obj].hasOwnProperty('life')) { // Object is projectile
-                if (gameObjects[obj].life <= 0) {
-                    gameObjects[obj].destroy();
-                    delete gameObjects[obj];
+    for (const i in gameObjects) {
+        if (gameObjects.hasOwnProperty(i)) {
+            gameObjects[i].tick(realDeltaTime);
+            if (gameObjects[i].type == OBJECT_TYPE.PROJECTILE) { // Object is projectile
+                if (gameObjects[i].life <= 0) {
+                    gameObjects[i].destroy();
+                    delete gameObjects[i];
                 }
             }
         }
@@ -337,7 +353,7 @@ function ClientVars(sck) {
         pos: {x: 0, y: 0},
         vel: {x: 0, y: 0},
         ang: 0,
-        fireTimer: svSettings.projectile.firerate,
+        fireTimer: svSettings.projectile.fireRate,
         fireReady: false
     };
     this.sent = {
@@ -489,10 +505,10 @@ function ClientVars(sck) {
     this.fireProjectile = function() {
         var firedProjectile = new Projectile();
         firedProjectile.pOwn = self.pId;
-        firedProjectile.obj.pos = self.ship.pos;
-        firedProjectile.obj.vel = { x: Math.sin(self.ship.ang), y: Math.cos(self.ship.ang) };
+        firedProjectile.obj.pos.x = self.ship.pos.x;
+        firedProjectile.obj.pos.y = self.ship.pos.y;
+        firedProjectile.obj.vel = { x: Math.sin(Math.PI + self.ship.ang) * 1024, y: Math.cos(Math.PI + self.ship.ang) * 1024 };
         gameObjects[firedProjectile.oId] = firedProjectile;
-        console.log(gameObjects);
     }
 
     this.playerUpdate = function(data) {
@@ -501,7 +517,7 @@ function ClientVars(sck) {
             self.ship.tarAng = data.tarAng;
             self.ship.thrust = data.thrust;
             if (data.hasOwnProperty('fire') && self.ship.fireReady) {
-                self.ship.fireTimer = svSettings.projectile.firerate;
+                self.ship.fireTimer = svSettings.projectile.fireRate;
                 self.ship.fireReady = false;
                 // Fire a projectile
                 self.fireProjectile();

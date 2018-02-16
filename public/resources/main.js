@@ -61,6 +61,7 @@ var influenceZones = {
 
 // Draw enum variables
 var DRAW_MOVE = 0, DRAW_LINE = 1;
+var OBJECT_TYPE = { OBJECT: 0, PROJECTILE: 1, ASTEROID: 2 };
 
 // Polygon data for visual objects
 var polys = {
@@ -200,6 +201,57 @@ function Asteroid() {
         ctx.stroke();
 
         ctx.strokeStyle = colors.asteroid;
+        self.visObj.draw();
+    };
+}
+
+function Projectile() {
+    var self = this;
+
+    this.visObj = new VisObject([{type: DRAW_MOVE, ang: 0, rad: 0},{type: DRAW_LINE, ang: 0, rad: 25}]);
+
+    Object.defineProperty(self, 'pos', {
+        get: function() {
+            return self.visObj.pos;
+        },
+        set: function(value) {
+            self.visObj.pos = value;
+        }
+    });
+
+    this.velDat = {x: 0, y: 0};
+    Object.defineProperty(self, 'vel', {
+        get: function() {
+            return self.velDat;
+        },
+        set: function(value) {
+            self.velDat = value;
+            self.updatePoly();
+        }
+    });
+
+    this.updatePoly = function() {
+        self.visObj.polyData[1].ang = Math.atan2(self.vel.x, self.vel.y);
+    }
+
+    this.importData = function(data) {
+        for (const key in data) {
+            if (data.hasOwnProperty(key) && self.hasOwnProperty(key)) {
+                self[key] = data[key];
+            }
+        }
+    };
+
+    this.tick = function(deltaTime) {
+        self.pos.x += self.vel.x * deltaTime * 1000;
+        self.pos.y += self.vel.y * deltaTime * 1000;
+    };
+
+    this.draw = function(dt) {
+        ctx.strokeStyle = colors.player.ship;
+        /*ctx.beginPath();
+        ctx.arc(camPos.x + svSettings.grid.offset.x + self.pos.x, camPos.y + svSettings.grid.offset.y + self.pos.y, influenceZones.deadzoneRad, Math.PI * -0.5 , Math.PI * 1.5 );
+        ctx.stroke();*/
         self.visObj.draw();
     };
 }
@@ -479,8 +531,10 @@ function HandleKeyRelease(event) {
 }
 
 function CanvasResize() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    if (canvas) {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
     svSettings.grid.pos.x = window.innerWidth * 0.5 + svSettings.grid.center.x;
     svSettings.grid.pos.y = window.innerHeight * 0.5 + svSettings.grid.center.y;
     svSettings.grid.offset.x = svSettings.grid.pos.x - svSettings.grid.center.x;
@@ -591,9 +645,23 @@ function RecieveUpdate(data) {
     if (data.hasOwnProperty('objs')) {
         for (var i in data.objs) {
             if (data.objs.hasOwnProperty(i)) {
-                gameObjects[i] = data.objs[i];
+                if (!gameObjects.hasOwnProperty(i)) {
+                    switch (data.objs[i].type) {
+                        case OBJECT_TYPE.PROJECTILE:
+                            gameObjects[i] = new Projectile();
+                            break;
+                    
+                        default:
+                            break;
+                    }
+                }
+                if (gameObjects.hasOwnProperty(i)) {
+                    gameObjects[i].importData(data.objs[i]);
+                }
             }
         }
+        //console.log(data.objs);
+        //console.log(gameObjects);
 
         for (var i in gameObjects) {
             if (!data.objs.hasOwnProperty(i)) {
@@ -709,8 +777,15 @@ function Draw(now) {
             asteroids[i].draw();
         }
     }*/
+
+    for (const i in gameObjects) {
+        if (gameObjects.hasOwnProperty(i)) {
+            gameObjects[i].draw();
+        }
+    }
+
     // Draw the current user on top of everything so they can always see themselves
-    for (var i in plys) {
+    for (const i in plys) {
         if (plys.hasOwnProperty(i)) {
             plys[i].draw();
         }
