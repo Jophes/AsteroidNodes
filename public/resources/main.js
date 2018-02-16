@@ -232,12 +232,20 @@ function ShipThruster() {
 function PlayerShip() {
     var self = this;
 
+    Object.defineProperty(self, 'pos', {
+        get: function() {
+            return self.ship.pos;
+        },
+        set: function(value) {
+            self.ship.pos = value;
+        }
+    })
+
+    this.ship = new VisObject(polys.player);
+
     this.pos = {x: 0, y: 0};
     this.vel = {x: 0, y: 0};
     this.ang = 0; this.tarAng = 0;
-
-    this.ship = new VisObject(polys.player);
-    this.ship.pos = this.pos;
 
     this.thruster = new ShipThruster();
     this.thruster.visObj.pos = this.pos;
@@ -245,6 +253,11 @@ function PlayerShip() {
     this.thruster.thrust = 0;
 
     this.lastUpdate = Date.now();
+
+    this.importData = function(data) {
+        self.pos = data.pos;
+        
+    }
 
     this.tick = function(now) {
         var deltaTime = (now - self.lastUpdate) * 0.001;
@@ -544,7 +557,6 @@ function RecieveUpdate(data) {
                     plys[i] = new PlayerShip();
                 }
                 plys[i].pos = data.plys[i].pos;
-                plys[i].ship.pos = data.plys[i].pos;
                 plys[i].thruster.visObj.pos = data.plys[i].pos;
                 plys[i].thruster.thrust = data.plys[i].thrust;
                 plys[i].vel = data.plys[i].vel;
@@ -561,9 +573,12 @@ function RecieveUpdate(data) {
         }
     }
 
+    if (data.hasOwnProperty('objs')) {
+        
+    }
+
     if (data.hasOwnProperty('user')) {
         user.ship.pos = data.user.pos;
-        user.ship.ship.pos = data.user.pos;
         user.ship.thruster.visObj.pos = data.user.pos;
         user.ship.vel = data.user.vel;
         user.ship.ang = data.user.ang;
@@ -578,13 +593,13 @@ socket.on('update_player', RecieveUpdate);
 // Game Objects
 var user = new PlayerInput();
 var plys = {};
-var asteroids = {};
-
+var gameObjects = {};
+/*
 for (var i = 0; i < 0; i++) {
     asteroids.push(new Asteroid());
     asteroids[i].visObj.pos.x = (Math.random() * 2 - 1) * svSettings.grid.center.x;
     asteroids[i].visObj.pos.y = (Math.random() * 2 - 1) * svSettings.grid.center.y;
-}
+}*/
 
 //  ----------
 // -- Update --
@@ -609,14 +624,14 @@ function Draw(now) {
 
     // -- Tick -- 
     // Perform update on asteroids
-    for (var i in asteroids) {
+    /*for (var i in asteroids) {
         if (asteroids.hasOwnProperty(i)) {
             asteroids[i].tick(deltaTime);
         }
-    }
+    }*/
     
     // Check if asteroids have left the game space
-    for (var i in asteroids) {
+    /*for (var i in asteroids) {
         if (asteroids.hasOwnProperty(i)) {
             if (OutOfBounds(asteroids[i].visObj.pos.x, svSettings.grid.center.x - asteroids[i].outerRad, asteroids[i].outerRad - svSettings.grid.center.x) || OutOfBounds(asteroids[i].visObj.pos.y, svSettings.grid.center.y - asteroids[i].outerRad, asteroids[i].outerRad - svSettings.grid.center.y)) {
                 asteroids[i].active = false;
@@ -640,7 +655,7 @@ function Draw(now) {
                 }
             }
         }
-    }
+    }*/
 
     // Perform update on player input
     for (var i in plys) {
@@ -668,11 +683,11 @@ function Draw(now) {
     ctx.stroke();
 
     // Draw the asteroids
-    for (var i in asteroids) {
+    /*for (var i in asteroids) {
         if (asteroids.hasOwnProperty(i)) {
             asteroids[i].draw();
         }
-    }
+    }*/
     // Draw the current user on top of everything so they can always see themselves
     for (var i in plys) {
         if (plys.hasOwnProperty(i)) {

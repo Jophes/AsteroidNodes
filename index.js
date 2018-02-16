@@ -302,7 +302,7 @@ function Tick() {
         for (var i in gameObjects) {
             if (gameObjects.hasOwnProperty(i)) {
                 if (gameObjects[i]) {
-                    plyData[clients[i].pId] = clients[i].collateDroneData();
+                    objData[gameObjects[i].oId] = gameObjects[i].collateData();
                 }
             }
         }
@@ -312,7 +312,7 @@ function Tick() {
                 if (clients[i].loggedIn) {
                     var tmp = plyData[clients[i].pId];
                     delete plyData[clients[i].pId];
-                    clients[i].updatePlayer({user: clients[i].collateHostData(), plys: plyData});
+                    clients[i].updatePlayer({user: clients[i].collateHostData(), plys: plyData, objs: objData});
                     plyData[clients[i].pId] = tmp;
                 }
             }
