@@ -214,6 +214,15 @@ function ShipThruster() {
         {type: polys.shipThruster[2].type, ang: polys.shipThruster[2].ang, rad: polys.shipThruster[2].rad}];
     this.visObj = new VisObject(this.polyData);
 
+    Object.defineProperty(self, 'pos', {
+        get: function() {
+            return self.visObj.pos;
+        },
+        set: function(value) {
+            self.visObj.pos = value;
+        }
+    })
+
     this.updateTilt = function(tilt) {
         self.polyData[1].ang = polys.shipThruster[1].ang + Math.PI * 0.15 * tilt;
         self.visObj.polyData = self.polyData;
@@ -232,31 +241,43 @@ function ShipThruster() {
 function PlayerShip() {
     var self = this;
 
+    this.ship = new VisObject(polys.player);
     Object.defineProperty(self, 'pos', {
         get: function() {
             return self.ship.pos;
         },
         set: function(value) {
             self.ship.pos = value;
+            self.thruster.pos = value;
         }
-    })
+    });
 
-    this.ship = new VisObject(polys.player);
+    this.thruster = new ShipThruster();
+    Object.defineProperty(self, 'thrust', {
+        get: function() {
+            return self.thruster.thrust;
+        },
+        set: function(value) {
+            self.thruster.thrust = value;
+        }
+    });
+
+    this.thruster.tilt = 0;
+    this.thrust = 0;
 
     this.pos = {x: 0, y: 0};
     this.vel = {x: 0, y: 0};
     this.ang = 0; this.tarAng = 0;
 
-    this.thruster = new ShipThruster();
-    this.thruster.visObj.pos = this.pos;
-    this.thruster.tilt = 0;
-    this.thruster.thrust = 0;
-
     this.lastUpdate = Date.now();
 
     this.importData = function(data) {
-        self.pos = data.pos;
-        
+        for (const key in data) {
+            if (data.hasOwnProperty(key) && self.hasOwnProperty(key)) {
+                self[key] = data[key];
+            }
+        }
+        self.lastUpdate = Date.now();
     }
 
     this.tick = function(now) {
@@ -556,13 +577,7 @@ function RecieveUpdate(data) {
                 if (!plys.hasOwnProperty(i)) {
                     plys[i] = new PlayerShip();
                 }
-                plys[i].pos = data.plys[i].pos;
-                plys[i].thruster.visObj.pos = data.plys[i].pos;
-                plys[i].thruster.thrust = data.plys[i].thrust;
-                plys[i].vel = data.plys[i].vel;
-                plys[i].tarAng = data.plys[i].tarAng;
-                plys[i].ang = data.plys[i].ang;
-                plys[i].lastUpdate = Date.now();
+                plys[i].importData(data.plys[i]);
             }
         }
     
@@ -578,11 +593,7 @@ function RecieveUpdate(data) {
     }
 
     if (data.hasOwnProperty('user')) {
-        user.ship.pos = data.user.pos;
-        user.ship.thruster.visObj.pos = data.user.pos;
-        user.ship.vel = data.user.vel;
-        user.ship.ang = data.user.ang;
-        user.ship.lastUpdate = Date.now();
+        user.ship.importData(data.user);
         if (data.user.hasOwnProperty('fireReady')) {
             user.fireReady = data.user.fireReady;
         }
