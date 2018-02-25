@@ -110,7 +110,7 @@ function Clamp(value, min, max) {
     return Math.min(Math.max(value, min), max);
 }
 
-/*function InBounds(value, min, max) {
+function InBounds(value, min, max) {
     return (value <= max && value >= min);
 }
 
@@ -120,7 +120,7 @@ function OutOfBounds(value, min, max) {
 
 function Lerp(value, target, fraction) {
     return value + (target - value) * fraction;
-}*/
+}
 
 // Listen for connections
 function HandleServerStartup() {
@@ -231,21 +231,59 @@ function Projectile() {
     }
 }
 
-/*function Asteroid() {
+function Asteroid() {
     GameObject.call(this);
 
     var self = this;
 
-    this.objTick = this.tick;
-    this.tick = function() {
-        self.objTick();
+    this.obj.ang = pi2 * Math.random();
+    var velMag = (46 + Math.random() * 72);
+    this.obj.vel = {x: Math.sin(this.obj.ang) * velMag, y: Math.cos(this.obj.ang) * velMag};
+    this.obj.angVel = (Math.random() - 0.5) * 1.5;
 
+    this.visData = {points: 6 + Math.floor(Math.random() * 12), rads: []};
+    for (var i = 0; i < this.visData.points; i++) {
+        this.visData.rads[i] = 8 + this.visData.points * 2.5 + (Math.random() - 0.5) * (6 + (this.visData.points - 6) * 2.5);
     }
-}*/
+
+    this.outerRad = 8 + this.visData.points * 2.5 + (6 + (this.visData.points - 6) * 2.5) * 0.5 + 2;
+
+    Object.defineProperty(self, 'type', {
+        get: function() {
+            return self.obj.type;
+        },
+        set: function(value) {
+            self.obj.type = value;
+        }
+    });
+
+    this.type = OBJECT_TYPE.ASTEROID;
+
+    this.outOfBounds = function() {
+        return OutOfBounds(self.obj.pos.x, shSettings.grid.center.x - self.outerRad, self.outerRad - shSettings.grid.center.x) || OutOfBounds(self.obj.pos.y, shSettings.grid.center.y - self.outerRad, self.outerRad - shSettings.grid.center.y);
+    }
+
+    this.objTick = this.tick;
+    this.tick = function(realDeltaTime) {
+        self.objTick(realDeltaTime);
+        self.obj.ang += self.obj.angVel * realDeltaTime;
+    }
+
+    this.collateData = function() {
+        return {type: self.type, obj: self.obj, vis: self.visData};
+    }
+}
 
 // -- Socket IO --
 var clients = [];
 var gameObjects = {};
+
+for (var i = 0; i < 64; i++) {
+    var asteroid = new Asteroid();
+    asteroid.obj.pos.x = (Math.random() * 2 - 1) * shSettings.grid.center.x;
+    asteroid.obj.pos.y = (Math.random() * 2 - 1) * shSettings.grid.center.y;
+    gameObjects[asteroid.oId] = asteroid;
+}
 
 function systemLog(message, tag = '') {
     if (tag != '') { tag = '<' + tag + '> '; }
@@ -288,15 +326,41 @@ function Tick() {
         }
     }
 
-    // Update projectile positions
+    // Update gameObject positions
     for (const i in gameObjects) {
         if (gameObjects.hasOwnProperty(i)) {
             gameObjects[i].tick(realDeltaTime);
-            if (gameObjects[i].type == OBJECT_TYPE.PROJECTILE) { // Object is projectile
-                if (gameObjects[i].life <= 0) {
-                    gameObjects[i].destroy();
-                    delete gameObjects[i];
-                }
+            switch (gameObjects[i].type) {
+                case OBJECT_TYPE.PROJECTILE:
+                    if (gameObjects[i].life <= 0) {
+                        gameObjects[i].destroy();
+                        delete gameObjects[i];
+                    }
+                    break;
+                case OBJECT_TYPE.ASTEROID:
+                    if (gameObjects[i].outOfBounds()) {
+                        gameObjects[i] = new Asteroid();
+                        var ang = FixAng(Math.atan2(gameObjects[i].obj.vel.x, gameObjects[i].obj.vel.y));
+                        if (InBounds(ang, Math.PI * -0.25, Math.PI * 0.25)) {
+                            gameObjects[i].obj.pos.x = (Math.random() * 2 - 1) * shSettings.grid.center.x;
+                            gameObjects[i].obj.pos.y = shSettings.grid.center.y - gameObjects[i].outerRad + 2;
+                        }
+                        else if (InBounds(ang, Math.PI * 0.25, Math.PI * 0.75)) {
+                            gameObjects[i].obj.pos.x = shSettings.grid.center.x - gameObjects[i].outerRad + 2;
+                            gameObjects[i].obj.pos.y = (Math.random() * 2 - 1) * shSettings.grid.center.x;
+                        }
+                        else if (ang > Math.PI * 0.75 || ang < Math.PI * -0.75) {
+                            gameObjects[i].obj.pos.x = (Math.random() * 2 - 1) * shSettings.grid.center.x;
+                            gameObjects[i].obj.pos.y = -shSettings.grid.center.y + gameObjects[i].outerRad - 2;
+                        }
+                        else if (InBounds(ang, Math.PI * -0.75, Math.PI * -0.25)) {
+                            gameObjects[i].obj.pos.x = -shSettings.grid.center.x + gameObjects[i].outerRad - 2;
+                            gameObjects[i].obj.pos.y = (Math.random() * 2 - 1) * shSettings.grid.center.y;
+                        }
+                    }
+                    break;
+                default:
+                    break;
             }
         }
     }

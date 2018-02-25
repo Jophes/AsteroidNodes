@@ -156,52 +156,91 @@ function VisObject(polyData) {
 function Asteroid() {
     var self = this;
 
-    this.active = true;
+    self.outerRad = 0;
+    self.collisionRad = 0;
 
-    var polyData = [];
-    var points = 6 + Math.floor(Math.random() * 12);
-    var angStep = pi2 / points;
-    for (var i = 0; i < points; i++) {
-        polyData[i] = {type: (i == 0 ? DRAW_MOVE : DRAW_LINE), ang: angStep * i, rad: 8 + points * 2.5 + (Math.random() - 0.5) * (6 + (points - 6) * 2.5)};
+    this.visObj = new VisObject([]);
+    Object.defineProperty(self, 'polyData', {
+        get: function() {
+            return self.visObj.polyData;
+        },
+        set: function(value) {
+            self.visObj.polyData = value;
+        }
+    });
+    Object.defineProperty(self, 'pos', {
+        get: function() {
+            return self.visObj.pos;
+        },
+        set: function(value) {
+            self.visObj.pos = value;
+        }
+    });
+    this.pos = {x: 0, y: 0};
+
+    Object.defineProperty(self, 'ang', {
+        get: function() {
+            return self.visObj.ang;
+        },
+        set: function(value) {
+            self.visObj.ang = value;
+        }
+    });
+    this.ang = 0;
+    this.vel = {x: 0, y: 0};
+    this.angVel = 0;
+
+    this.generatePolyData = function(points, rads) {
+        var angStep = pi2 / points;
+        self.polyData = [];
+        for (var i = 0; i < points; i++) {
+            self.polyData[i] = {type: (i == 0 ? DRAW_MOVE : DRAW_LINE), ang: angStep * i, rad: rads[i]};
+        }
+        self.polyData[points] = {type: DRAW_LINE, ang: self.polyData[0].ang, rad: self.polyData[0].rad};
+        self.outerRad = 8 + points * 2.5 + (6 + (points - 6) * 2.5) * 0.5 + 2;
+        self.collisionRad = 8 + points * 2.5;
     }
-    polyData[points] = {type: DRAW_LINE, ang: polyData[0].ang, rad: polyData[0].rad};
-    this.outerRad = 8 + points * 2.5 + (6 + (points - 6) * 2.5) * 0.5 + 2;
-    this.collisionRad = 8 + points * 2.5;
-    
-    this.visObj = new VisObject(polyData);
-    this.visObj.pos = {x: 0, y: 0};
 
-    this.visObj.ang = pi2 * Math.random();
-    var velMag = (46 + Math.random() * 72);
-    this.vel = {x: Math.sin(self.visObj.ang) * velMag, y: Math.cos(self.visObj.ang) * velMag};
-    this.angVel = (Math.random() - 0.5) * 1.5;
-
-    this.tick = function(deltaTime) {
-        if (self.active) {
-            self.visObj.pos.x += self.vel.x * deltaTime;
-            self.visObj.pos.y += self.vel.y * deltaTime;
-            self.visObj.ang += self.angVel * deltaTime;
+    this.importData = function(data) {
+        for (const key in data.obj) {
+            if (data.obj.hasOwnProperty(key) && self.hasOwnProperty(key)) {
+                self[key] = data.obj[key];
+            }
+        }
+        if (data.hasOwnProperty('vis')) {
+            self.generatePolyData(data.vis.points, data.vis.rads);
         }
     };
 
+    this.tick = function(deltaTime) {
+        self.pos.x += self.vel.x * deltaTime;
+        self.pos.y += self.vel.y * deltaTime;
+        self.ang += self.angVel * deltaTime;
+    };
+
     this.draw = function() {
-        
         ctx.strokeStyle = colors.rings.asteroid;
-        ctx.beginPath();
-        ctx.arc(camPos.x + svSettings.grid.offset.x + self.visObj.pos.x, camPos.y + svSettings.grid.offset.y + self.visObj.pos.y, self.outerRad, 0, pi2);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(camPos.x + svSettings.grid.offset.x + self.visObj.pos.x, camPos.y + svSettings.grid.offset.y + self.visObj.pos.y);
-        ctx.lineTo(camPos.x + svSettings.grid.offset.x + self.visObj.pos.x - Math.sin(self.visObj.ang) * influenceZones.totalRad, camPos.y + svSettings.grid.offset.y + self.visObj.pos.y - Math.cos(self.visObj.ang) * influenceZones.totalRad);
-        ctx.stroke();
+        if (self.outerRad) {
+            ctx.beginPath();
+            ctx.arc(camPos.x + svSettings.grid.offset.x + self.pos.x, camPos.y + svSettings.grid.offset.y + self.pos.y, self.outerRad, 0, pi2);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(camPos.x + svSettings.grid.offset.x + self.pos.x, camPos.y + svSettings.grid.offset.y + self.pos.y);
+            ctx.lineTo(camPos.x + svSettings.grid.offset.x + self.pos.x - Math.sin(self.ang) * influenceZones.totalRad, camPos.y + svSettings.grid.offset.y + self.pos.y - Math.cos(self.ang) * influenceZones.totalRad);
+            ctx.stroke();
+        }
 
-        ctx.strokeStyle = colors.rings.inner;
-        ctx.beginPath();
-        ctx.arc(camPos.x + svSettings.grid.offset.x + self.visObj.pos.x, camPos.y + svSettings.grid.offset.y + self.visObj.pos.y, self.collisionRad, 0, pi2);
-        ctx.stroke();
+        if (self.collisionRad) {
+            ctx.strokeStyle = colors.rings.inner;
+            ctx.beginPath();
+            ctx.arc(camPos.x + svSettings.grid.offset.x + self.pos.x, camPos.y + svSettings.grid.offset.y + self.pos.y, self.collisionRad, 0, pi2);
+            ctx.stroke();
+        }
 
-        ctx.strokeStyle = colors.asteroid;
-        self.visObj.draw();
+        if (self.polyData.length > 0) {
+            ctx.strokeStyle = colors.asteroid;
+            self.visObj.draw();
+        }
     };
 }
 
@@ -249,9 +288,6 @@ function Projectile() {
 
     this.draw = function(dt) {
         ctx.strokeStyle = colors.player.ship;
-        /*ctx.beginPath();
-        ctx.arc(camPos.x + svSettings.grid.offset.x + self.pos.x, camPos.y + svSettings.grid.offset.y + self.pos.y, influenceZones.deadzoneRad, Math.PI * -0.5 , Math.PI * 1.5 );
-        ctx.stroke();*/
         self.visObj.draw();
     };
 }
@@ -545,8 +581,10 @@ function CanvasResize() {
 
     svSettings.grid.cutoffs.offsets.x = svSettings.grid.pos.x - svSettings.grid.center.x * 2;
     svSettings.grid.cutoffs.offsets.y = svSettings.grid.pos.y - svSettings.grid.center.y * 2;
-    svSettings.grid.cutoffs.sizes.width = canvas.width * 0.5 + svSettings.grid.center.x;
-    svSettings.grid.cutoffs.sizes.height = canvas.height * 0.5 + svSettings.grid.center.y;
+    if (canvas) {
+        svSettings.grid.cutoffs.sizes.width = canvas.width * 0.5 + svSettings.grid.center.x;
+        svSettings.grid.cutoffs.sizes.height = canvas.height * 0.5 + svSettings.grid.center.y;
+    }
 }
 
 function LoginAttempt(event) {
@@ -650,7 +688,9 @@ function RecieveUpdate(data) {
                         case OBJECT_TYPE.PROJECTILE:
                             gameObjects[i] = new Projectile();
                             break;
-                    
+                        case OBJECT_TYPE.ASTEROID:
+                            gameObjects[i] = new Asteroid();
+                            break;
                         default:
                             break;
                     }
@@ -683,12 +723,6 @@ socket.on('update_player', RecieveUpdate);
 var user = new PlayerInput();
 var plys = {};
 var gameObjects = {};
-/*
-for (var i = 0; i < 0; i++) {
-    asteroids.push(new Asteroid());
-    asteroids[i].visObj.pos.x = (Math.random() * 2 - 1) * svSettings.grid.center.x;
-    asteroids[i].visObj.pos.y = (Math.random() * 2 - 1) * svSettings.grid.center.y;
-}*/
 
 //  ----------
 // -- Update --
@@ -712,39 +746,12 @@ function Draw(now) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // -- Tick -- 
-    // Perform update on asteroids
-    /*for (var i in asteroids) {
-        if (asteroids.hasOwnProperty(i)) {
-            asteroids[i].tick(deltaTime);
+    // Perform update on gameObjects
+    for (var i in gameObjects) {
+        if (gameObjects.hasOwnProperty(i)) {
+            gameObjects[i].tick(deltaTime);
         }
-    }*/
-    
-    // Check if asteroids have left the game space
-    /*for (var i in asteroids) {
-        if (asteroids.hasOwnProperty(i)) {
-            if (OutOfBounds(asteroids[i].visObj.pos.x, svSettings.grid.center.x - asteroids[i].outerRad, asteroids[i].outerRad - svSettings.grid.center.x) || OutOfBounds(asteroids[i].visObj.pos.y, svSettings.grid.center.y - asteroids[i].outerRad, asteroids[i].outerRad - svSettings.grid.center.y)) {
-                asteroids[i].active = false;
-                asteroids[i] = new Asteroid();
-                var ang = FixAng(Math.atan2(asteroids[i].vel.x, asteroids[i].vel.y));
-                if (InBounds(ang, Math.PI * -0.25, Math.PI * 0.25)) {
-                    asteroids[i].visObj.pos.x = (Math.random() * 2 - 1) * svSettings.grid.center.x;
-                    asteroids[i].visObj.pos.y = svSettings.grid.center.y - asteroids[i].outerRad + 2;
-                }
-                else if (InBounds(ang, Math.PI * 0.25, Math.PI * 0.75)) {
-                    asteroids[i].visObj.pos.x = svSettings.grid.center.x - asteroids[i].outerRad + 2;
-                    asteroids[i].visObj.pos.y = (Math.random() * 2 - 1) * svSettings.grid.center.x;
-                }
-                else if (ang > Math.PI * 0.75 || ang < Math.PI * -0.75) {
-                    asteroids[i].visObj.pos.x = (Math.random() * 2 - 1) * svSettings.grid.center.x;
-                    asteroids[i].visObj.pos.y = -svSettings.grid.center.y + asteroids[i].outerRad - 2;
-                }
-                else if (InBounds(ang, Math.PI * -0.75, Math.PI * -0.25)) {
-                    asteroids[i].visObj.pos.x = -svSettings.grid.center.x + asteroids[i].outerRad - 2;
-                    asteroids[i].visObj.pos.y = (Math.random() * 2 - 1) * svSettings.grid.center.y;
-                }
-            }
-        }
-    }*/
+    }
 
     // Perform update on player input
     for (var i in plys) {
@@ -770,13 +777,6 @@ function Draw(now) {
         ctx.lineTo(cellPos.x + svSettings.grid.cell.width * svSettings.grid.count.width, cellPos.y);
     }
     ctx.stroke();
-
-    // Draw the asteroids
-    /*for (var i in asteroids) {
-        if (asteroids.hasOwnProperty(i)) {
-            asteroids[i].draw();
-        }
-    }*/
 
     for (const i in gameObjects) {
         if (gameObjects.hasOwnProperty(i)) {
