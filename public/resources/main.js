@@ -282,8 +282,8 @@ function Projectile() {
     };
 
     this.tick = function(deltaTime) {
-        self.pos.x += self.vel.x * deltaTime * 1000;
-        self.pos.y += self.vel.y * deltaTime * 1000;
+        self.pos.x += self.vel.x * deltaTime;
+        self.pos.y += self.vel.y * deltaTime;
     };
 
     this.draw = function(dt) {
