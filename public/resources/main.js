@@ -270,7 +270,7 @@ function Projectile() {
     });
 
     this.updatePoly = function() {
-        self.visObj.polyData[1].ang = Math.atan2(self.vel.x, self.vel.y);
+        self.visObj.polyData[1].ang = Math.PI + Math.atan2(self.vel.x, self.vel.y);
     }
 
     this.importData = function(data) {

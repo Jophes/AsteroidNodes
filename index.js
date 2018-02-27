@@ -122,6 +122,10 @@ function Lerp(value, target, fraction) {
     return value + (target - value) * fraction;
 }
 
+function Distance(vec1, vec2) {
+    return Math.sqrt(Math.pow(vec1.x - vec2.x, 2) + Math.pow(vec1.y - vec2.y, 2))
+}
+
 // Listen for connections
 function HandleServerStartup() {
     console.log(GetTime() + ' [SERVER] Server listening on port %d', port);
@@ -194,6 +198,9 @@ function GameObject() {
         self.obj.pos.y += self.obj.vel.y * realDeltaTime;
     }
 
+    this.postTick = function() {
+    }
+
     this.collateData = function() {
         return self.obj;
     }
@@ -229,6 +236,34 @@ function Projectile() {
         self.objTick(realDeltaTime);
         self.life -= realDeltaTime;
     }
+
+    this.checkCollisions = function() {
+        var colliding = false;
+        for (const i in clients) {
+            if (clients.hasOwnProperty(i)) {
+                if (clients[i].pId != self.pOwn && Distance(self.obj.pos, clients[i].ship.pos) <= 14) {
+                    colliding = true;
+                    self.life = 0;
+                    console.log('projectile hit player');
+                    break;
+                }
+            }
+        }
+        for (const i in gameObjects) {
+            if (gameObjects.hasOwnProperty(i)) {
+                if (gameObjects[i].type == OBJECT_TYPE.ASTEROID && Distance(self.obj.pos, gameObjects[i].obj.pos) <= gameObjects[i].collisionRad) {
+                    colliding = true;
+                    self.life = 0;
+                    console.log('projectile hit asteroid');
+                    break;
+                }
+            }
+        }
+    }
+
+    this.postTick = function() {
+        self.checkCollisions();
+    }
 }
 
 function Asteroid() {
@@ -247,6 +282,7 @@ function Asteroid() {
     }
 
     this.outerRad = 8 + this.visData.points * 2.5 + (6 + (this.visData.points - 6) * 2.5) * 0.5 + 2;
+    this.collisionRad = 8 + this.visData.points * 2.5; 
 
     Object.defineProperty(self, 'type', {
         get: function() {
@@ -338,6 +374,7 @@ function Tick() {
                     }
                     break;
                 case OBJECT_TYPE.ASTEROID:
+                    // Update asteroid positions, spawn new ones if needed
                     if (gameObjects[i].outOfBounds()) {
                         gameObjects[i] = new Asteroid();
                         var ang = FixAng(Math.atan2(gameObjects[i].obj.vel.x, gameObjects[i].obj.vel.y));
@@ -365,12 +402,14 @@ function Tick() {
         }
     }
 
-    // Update asteroid positions, spawn new ones if needed
 
+    for (const i in gameObjects) {
+        if (gameObjects.hasOwnProperty(i)) {
+            gameObjects[i].postTick();
+        }
+    }
 
     // Compile previous information to data packet to be sent to players to replicate
-
-    
     syncTimer += realDeltaTime;
     if (syncTimer >= syncTime) {
         syncTimer -= syncTime;
