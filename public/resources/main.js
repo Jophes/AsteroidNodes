@@ -125,6 +125,14 @@ function Lerp(value, target, fraction) {
     return value + (target - value) * fraction;
 }
 
+function Magnitude(vec) {
+    return Math.sqrt(Math.pow(vec.x, 2) + Math.pow(vec.y, 2));
+}
+
+function Distance(vec1, vec2) {
+    return Magnitude({x: vec1.x - vec2.x, y: vec1.y - vec2.y });
+}
+
 //  -----------
 // -- Objects --
 //  -----------
@@ -156,6 +164,7 @@ function VisObject(polyData) {
 function Asteroid() {
     var self = this;
 
+    self.type = OBJECT_TYPE.ASTEROID;
     self.outerRad = 0;
     self.collisionRad = 0;
 
@@ -247,6 +256,7 @@ function Asteroid() {
 function Projectile() {
     var self = this;
 
+    self.type = OBJECT_TYPE.PROJECTILE;
     this.visObj = new VisObject([{type: DRAW_MOVE, ang: 0, rad: 0},{type: DRAW_LINE, ang: 0, rad: 25}]);
 
     Object.defineProperty(self, 'pos', {
@@ -271,6 +281,7 @@ function Projectile() {
 
     this.updatePoly = function() {
         self.visObj.polyData[1].ang = Math.PI + Math.atan2(self.vel.x, self.vel.y);
+        self.visObj.polyData[1].rad = Magnitude(self.vel) * (svSettings.tickInterval / 1000);
     }
 
     this.importData = function(data) {
@@ -287,8 +298,10 @@ function Projectile() {
     };
 
     this.draw = function(dt) {
-        ctx.strokeStyle = colors.player.ship;
-        self.visObj.draw();
+        ///if (self.visible) {
+            ctx.strokeStyle = colors.player.ship;
+            self.visObj.draw();
+        //}
     };
 }
 
@@ -353,9 +366,11 @@ function PlayerShip() {
     this.thruster.tilt = 0;
     this.thrust = 0;
 
+    this.pId = null;
     this.pos = {x: 0, y: 0};
     this.vel = {x: 0, y: 0};
-    this.ang = 0; this.tarAng = 0;
+    this.ang = 0; 
+    this.tarAng = 0;
 
     this.lastUpdate = Date.now();
 
@@ -451,8 +466,36 @@ function PlayerInput() {
     };
 
     this.tick = function(now) {
+        // CHEAT
+        /*self.lmbDown = 1;
+        self.attemptFire = true;*/
+
         self.thrustInput = self.thrustInput + ((self.lmbDown ? 1 : 0) - self.thrustInput) * 0.1;
         var diff = { x: self.mPos.x - self.ship.pos.x - camPos.x, y: self.mPos.y - self.ship.pos.y - camPos.y };
+
+        // CHEAT
+        /*var dist = null, plyTarget = false;
+        for (const i in gameObjects) {
+            if (gameObjects.hasOwnProperty(i)) {
+                if (gameObjects[i].type == OBJECT_TYPE.ASTEROID) {
+                    var tmpDist = Distance(self.ship.pos, gameObjects[i].pos);
+                    if (dist == null || tmpDist < dist) {
+                        dist = tmpDist;
+                        diff = { x: gameObjects[i].pos.x - self.ship.pos.x, y: gameObjects[i].pos.y - self.ship.pos.y };;
+                    }
+                }
+            }
+        }
+        for (const i in plys) {
+            if (plys.hasOwnProperty(i)) {
+                var tmpDist = Distance(self.ship.pos, plys[i].pos);
+                if (dist == null || (plyTarget == false && tmpDist * 0.25 < dist) || tmpDist < dist) {
+                    dist = tmpDist;
+                    plyTarget = true;
+                    diff = { x: plys[i].pos.x - self.ship.pos.x, y: plys[i].pos.y - self.ship.pos.y };;
+                }
+            }
+        }*/
         
         self.distance = (Math.sqrt(Math.pow(diff.x, 2) + Math.pow(diff.y, 2)) - influenceZones.deadzoneRad) / influenceZones.influenceRad;
         if (self.distance > 1) { self.distance = 1; }

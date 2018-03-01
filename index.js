@@ -28,6 +28,11 @@ shSettings.grid.center = {
     x: shSettings.grid.cell.width * shSettings.grid.count.width * -0.5, 
     y: shSettings.grid.cell.height * shSettings.grid.count.height * -0.5
 };
+var influenceZones = {
+    deadzoneRad: 14,
+    influenceRad: 64,
+    totalRad: 14 + 64
+};
 
 const syncTime = shSettings.syncInterval / 1000;
 const deltaTime = shSettings.tickInterval / 1000;
@@ -122,9 +127,32 @@ function Lerp(value, target, fraction) {
     return value + (target - value) * fraction;
 }
 
-function Distance(vec1, vec2) {
-    return Math.sqrt(Math.pow(vec1.x - vec2.x, 2) + Math.pow(vec1.y - vec2.y, 2))
+function Magnitude(vec) {
+    return Math.sqrt(Math.pow(vec.x, 2) + Math.pow(vec.y, 2));
 }
+
+function Distance(vec1, vec2) {
+    return Magnitude({x: vec1.x - vec2.x, y: vec1.y - vec2.y });
+}
+
+// Upper case vec2, lower case single floats
+// S = start, E = end, C = circle, r = radius
+function RayCastCircle(S, E, C, r) {
+    var D = {x: E.x - S.x, y: E.y - S.y}, m = D.y / D.x;
+    var a = 1 + Math.pow(m, 2), b = 2 * (m * (S.y - m * S.x - C.y) - C.x);
+    var c = Math.pow(C.x, 2) + Math.pow(C.y, 2) - Math.pow(r, 2) + m * S.x * (m * S.x + 2 * C.y) - S.y * (2 * C.y + S.y);
+    var discrim = Math.pow(b, 2) - 4 * a * c, returnData = [];
+    for (let i = 0; i < (discrim > 0 ? 2 : (discrim == 0 ? 1 : 0)); i++) {
+        var P = {x: (-b + Math.sqrt(discrim) * (1 - 2 * i)) / (2 * a), y: null};
+        P.y = m * P.x - m * S.x + S.y;
+        if (P.x >= S.x && P.y >= S.y && P.x <= E.x && P.y <= E.y) {
+            returnData.push(P);
+        }
+    }
+    return returnData;
+}
+
+//console.log(RayCastCircle({x: 3 + 4, y: 2}, {x: 6 + 4, y: 4}, {x: 4, y: 3}, 3));
 
 // Listen for connections
 function HandleServerStartup() {
@@ -187,11 +215,29 @@ function GameObject() {
 
     this.oId = GenerateObjectId();
 
+
     this.obj = { 
         type: OBJECT_TYPE.OBJECT,
         pos: { x: 0, y: 0 },
         vel: { x: 0, y: 0 }
     }
+
+    Object.defineProperty(self, 'pos', {
+        get: function() {
+            return self.obj.pos;
+        },
+        set: function(value) {
+            self.obj.pos = value;
+        }
+    });
+    Object.defineProperty(self, 'type', {
+        get: function() {
+            return self.obj.type;
+        },
+        set: function(value) {
+            self.obj.type = value;
+        }
+    });
 
     this.tick = function(realDeltaTime) {
         self.obj.pos.x += self.obj.vel.x * realDeltaTime;
@@ -216,18 +262,9 @@ function Projectile() {
 
     var self = this;
 
-    this.pOwn = null;
+    this.obj.pOwn = null;
 
     this.life = svSettings.projectile.lifetime;
-
-    Object.defineProperty(self, 'type', {
-        get: function() {
-            return self.obj.type;
-        },
-        set: function(value) {
-            self.obj.type = value;
-        }
-    });
 
     this.type = OBJECT_TYPE.PROJECTILE;
 
@@ -237,28 +274,64 @@ function Projectile() {
         self.life -= realDeltaTime;
     }
 
+    this.calcCollision = function(pos, radius) {
+        var data = {hit: false, pos: null, distance: null, time: null};
+        var hitPositions = RayCastCircle(self.pos, {x: self.pos.x + self.obj.vel.x, y: self.pos.y + self.obj.vel.y}, pos, radius);
+        for (let i = 0; i < hitPositions.length; i++) {
+            var dist = Distance(self.pos, hitPositions[i])
+            if (data.distance < dist || !data.hit) {
+                data.hit = true;
+                data.pos = hitPositions[i];
+                data.distance = dist;
+                data.time = data.distance / Magnitude(self.obj.vel);
+            }
+        }
+        return data;
+    }
+
     this.checkCollisions = function() {
-        var colliding = false;
         for (const i in clients) {
             if (clients.hasOwnProperty(i)) {
-                if (clients[i].pId != self.pOwn && Distance(self.obj.pos, clients[i].ship.pos) <= 14) {
-                    colliding = true;
+                if (clients[i].pId != self.obj.pOwn && Distance(self.pos, clients[i].ship.pos) <= 14) {
                     self.life = 0;
-                    console.log('projectile hit player');
                     break;
                 }
             }
         }
         for (const i in gameObjects) {
             if (gameObjects.hasOwnProperty(i)) {
-                if (gameObjects[i].type == OBJECT_TYPE.ASTEROID && Distance(self.obj.pos, gameObjects[i].obj.pos) <= gameObjects[i].collisionRad) {
-                    colliding = true;
+                if (gameObjects[i].type == OBJECT_TYPE.ASTEROID && Distance(self.pos, gameObjects[i].obj.pos) <= gameObjects[i].collisionRad) {
                     self.life = 0;
-                    console.log('projectile hit asteroid');
+                    gameObjects[i].respawn();
                     break;
                 }
             }
         }
+        /*for (const i in clients) {
+            if (clients.hasOwnProperty(i)) {
+                if (clients[i].pId != self.obj.pOwn) {
+                    var hitData = self.calcCollision(clients[i].ship.pos, 14);
+                    if (hitData.hit)
+                    {
+                        self.life = 0;
+                        break;
+                    }
+                }
+            }
+        }
+        for (const i in gameObjects) {
+            if (gameObjects.hasOwnProperty(i)) {
+                if (gameObjects[i].type == OBJECT_TYPE.ASTEROID) {
+                    var hitData = self.calcCollision(gameObjects[i].pos, gameObjects[i].collisionRad);
+                    if (hitData.hit)
+                    {
+                        self.life = 0;
+                        gameObjects[i].respawn();
+                        break;
+                    }
+                }
+            }
+        }*/
     }
 
     this.postTick = function() {
@@ -271,29 +344,46 @@ function Asteroid() {
 
     var self = this;
 
-    this.obj.ang = pi2 * Math.random();
-    var velMag = (46 + Math.random() * 72);
-    this.obj.vel = {x: Math.sin(this.obj.ang) * velMag, y: Math.cos(this.obj.ang) * velMag};
-    this.obj.angVel = (Math.random() - 0.5) * 1.5;
-
-    this.visData = {points: 6 + Math.floor(Math.random() * 12), rads: []};
-    for (var i = 0; i < this.visData.points; i++) {
-        this.visData.rads[i] = 8 + this.visData.points * 2.5 + (Math.random() - 0.5) * (6 + (this.visData.points - 6) * 2.5);
-    }
-
-    this.outerRad = 8 + this.visData.points * 2.5 + (6 + (this.visData.points - 6) * 2.5) * 0.5 + 2;
-    this.collisionRad = 8 + this.visData.points * 2.5; 
-
-    Object.defineProperty(self, 'type', {
-        get: function() {
-            return self.obj.type;
-        },
-        set: function(value) {
-            self.obj.type = value;
+    this.generateVisData = function() {
+        self.obj.ang = pi2 * Math.random();
+        var velMag = (46 + Math.random() * 72);
+        self.obj.vel = {x: Math.sin(self.obj.ang) * velMag, y: Math.cos(self.obj.ang) * velMag};
+        self.obj.angVel = (Math.random() - 0.5) * 1.5;
+    
+        self.visData = {points: 6 + Math.floor(Math.random() * 12), rads: []};
+        self.collisionRad = 8 + self.visData.points * 2.5; 
+        for (var i = 0; i < self.visData.points; i++) {
+            self.visData.rads[i] = self.collisionRad + (Math.random() - 0.5) * (6 + (self.visData.points - 6) * 2.5);
         }
-    });
+        this.outerRad = this.collisionRad + (6 + (this.visData.points - 6) * 2.5) * 0.5 + 2;
+    }
+    this.generateVisData();
 
     this.type = OBJECT_TYPE.ASTEROID;
+
+    this.respawn = function() {
+        this.generateVisData();
+        var ang = FixAng(Math.atan2(self.obj.vel.x, self.obj.vel.y));
+        if (InBounds(ang, Math.PI * -0.25, Math.PI * 0.25)) {
+            self.obj.pos.x = (Math.random() * 2 - 1) * shSettings.grid.center.x;
+            self.obj.pos.y = shSettings.grid.center.y - self.outerRad + 2;
+        }
+        else if (InBounds(ang, Math.PI * 0.25, Math.PI * 0.75)) {
+            self.obj.pos.x = shSettings.grid.center.x - self.outerRad + 2;
+            self.obj.pos.y = (Math.random() * 2 - 1) * shSettings.grid.center.x;
+        }
+        else if (ang > Math.PI * 0.75 || ang < Math.PI * -0.75) {
+            self.obj.pos.x = (Math.random() * 2 - 1) * shSettings.grid.center.x;
+            self.obj.pos.y = -shSettings.grid.center.y + self.outerRad - 2;
+        }
+        else if (InBounds(ang, Math.PI * -0.75, Math.PI * -0.25)) {
+            self.obj.pos.x = -shSettings.grid.center.x + self.outerRad - 2;
+            self.obj.pos.y = (Math.random() * 2 - 1) * shSettings.grid.center.y;
+        }
+        
+        self.obj.pos.x = (Math.random() * 2 - 1) * shSettings.grid.center.x;
+        self.obj.pos.y = (Math.random() * 2 - 1) * shSettings.grid.center.y;
+    }
 
     this.outOfBounds = function() {
         return OutOfBounds(self.obj.pos.x, shSettings.grid.center.x - self.outerRad, self.outerRad - shSettings.grid.center.x) || OutOfBounds(self.obj.pos.y, shSettings.grid.center.y - self.outerRad, self.outerRad - shSettings.grid.center.y);
@@ -319,7 +409,13 @@ for (var i = 0; i < 64; i++) {
     asteroid.obj.pos.x = (Math.random() * 2 - 1) * shSettings.grid.center.x;
     asteroid.obj.pos.y = (Math.random() * 2 - 1) * shSettings.grid.center.y;
     gameObjects[asteroid.oId] = asteroid;
-}
+}/*
+for (var i = 0; i < 1; i++) {
+    var asteroid = new Asteroid();
+    asteroid.obj.pos.x = 0;
+    asteroid.obj.pos.y = 128;
+    gameObjects[asteroid.oId] = asteroid;
+}*/
 
 function systemLog(message, tag = '') {
     if (tag != '') { tag = '<' + tag + '> '; }
@@ -329,7 +425,7 @@ function systemLog(message, tag = '') {
 function broadcastSysMsg(msg) {
     var sendData = {message: msg};
     for (var key in clients) {
-        if (clients.hasOwnProperty(key)) {
+        if (clients.hasOwnProperty(key) && !clients[key].bot) {
             clients[key].socket.emit('system_message', sendData);
         }
     }
@@ -338,7 +434,7 @@ function broadcastSysMsg(msg) {
 function broadcastMessage(sender, msg) {
     var sendData = {senderNick: sender.nickname, message: msg};
     for (var key in clients) {
-        if (clients.hasOwnProperty(key)) {
+        if (clients.hasOwnProperty(key) && !clients[key].bot) {
             clients[key].socket.emit('chat_message', sendData);
         }
     }
@@ -367,33 +463,12 @@ function Tick() {
         if (gameObjects.hasOwnProperty(i)) {
             gameObjects[i].tick(realDeltaTime);
             switch (gameObjects[i].type) {
-                case OBJECT_TYPE.PROJECTILE:
-                    if (gameObjects[i].life <= 0) {
-                        gameObjects[i].destroy();
-                        delete gameObjects[i];
-                    }
-                    break;
                 case OBJECT_TYPE.ASTEROID:
                     // Update asteroid positions, spawn new ones if needed
                     if (gameObjects[i].outOfBounds()) {
-                        gameObjects[i] = new Asteroid();
-                        var ang = FixAng(Math.atan2(gameObjects[i].obj.vel.x, gameObjects[i].obj.vel.y));
-                        if (InBounds(ang, Math.PI * -0.25, Math.PI * 0.25)) {
-                            gameObjects[i].obj.pos.x = (Math.random() * 2 - 1) * shSettings.grid.center.x;
-                            gameObjects[i].obj.pos.y = shSettings.grid.center.y - gameObjects[i].outerRad + 2;
-                        }
-                        else if (InBounds(ang, Math.PI * 0.25, Math.PI * 0.75)) {
-                            gameObjects[i].obj.pos.x = shSettings.grid.center.x - gameObjects[i].outerRad + 2;
-                            gameObjects[i].obj.pos.y = (Math.random() * 2 - 1) * shSettings.grid.center.x;
-                        }
-                        else if (ang > Math.PI * 0.75 || ang < Math.PI * -0.75) {
-                            gameObjects[i].obj.pos.x = (Math.random() * 2 - 1) * shSettings.grid.center.x;
-                            gameObjects[i].obj.pos.y = -shSettings.grid.center.y + gameObjects[i].outerRad - 2;
-                        }
-                        else if (InBounds(ang, Math.PI * -0.75, Math.PI * -0.25)) {
-                            gameObjects[i].obj.pos.x = -shSettings.grid.center.x + gameObjects[i].outerRad - 2;
-                            gameObjects[i].obj.pos.y = (Math.random() * 2 - 1) * shSettings.grid.center.y;
-                        }
+                        /*gameObjects[i] = new Asteroid();
+                        gameObjects[i].setSpawnPos();*/
+                        gameObjects[i].respawn();
                     }
                     break;
                 default:
@@ -406,6 +481,16 @@ function Tick() {
     for (const i in gameObjects) {
         if (gameObjects.hasOwnProperty(i)) {
             gameObjects[i].postTick();
+            switch (gameObjects[i].type) {
+                case OBJECT_TYPE.PROJECTILE:
+                    if (gameObjects[i].life <= 0) {
+                        gameObjects[i].destroy();
+                        delete gameObjects[i];
+                    }
+                    break;
+                default:
+                    break;
+            }
         }
     }
 
@@ -449,6 +534,10 @@ setInterval(Tick, shSettings.tickInterval);
 // Client object constructor
 function ClientVars(sck) {
     var self = this;
+    this.bot = false;
+    if (sck == null) {
+        this.bot = true;
+    }
     this.pId = GeneratePlayerId();
     this.ship = {
         tarAng: 0,
@@ -459,6 +548,8 @@ function ClientVars(sck) {
         fireTimer: svSettings.projectile.fireRate,
         fireReady: false
     };
+    this.ship.pos.x = (Math.random() * 2 - 1) * shSettings.grid.center.x;
+    this.ship.pos.y = (Math.random() * 2 - 1) * shSettings.grid.center.y;
     this.sent = {
         fireReady: false
     }
@@ -468,7 +559,7 @@ function ClientVars(sck) {
     // Create log method 
     this.log = function(message, tag = '') {
         if (tag != '') { tag = '<' + tag + '> '; }
-        console.log(GetTime() + ' [SOCKET.IO] ' + tag + message + ' {' + this.socket.request.connection.remoteAddress + ':' + this.socket.request.connection.remotePort + '}');
+        console.log(GetTime() + ' [SOCKET.IO] ' + tag + message + (!self.bot ? ' {' + this.socket.request.connection.remoteAddress + ':' + this.socket.request.connection.remotePort + '}' : '{BOT}'));
     };
 
     // Disconnect method
@@ -477,13 +568,11 @@ function ClientVars(sck) {
         self.destroy();
         self.log('Client ' + (self.loggedIn ? ('"' + self.nickname + '" ') : '') + 'has disconnected');
     };
-    this.socket.on('disconnect', self.disconnect);
 
     // Init settings
     this.initSettings = function() {
         self.socket.emit('settings_init', { settings: shSettings });
     }
-    this.initSettings();
 
     // -- LOGIN --
     this.nickname = null;
@@ -535,7 +624,6 @@ function ClientVars(sck) {
             self.log('Ignoring login request for client already logged in', 'WARNING');
         }
     }
-    this.socket.on('login_attempt', self.loginAttempt);
 
     // -- CHAT --
     var lastMessageTime = Date.now() - shSettings.chatSpamTime;
@@ -555,7 +643,6 @@ function ClientVars(sck) {
             self.log('Ignoring chat message from client not logged in', 'WARNING')
         }
     };
-    this.socket.on('chat_message', self.chatRecieved);
 
     // -- Game Updates --
     this.tick = function(realDeltaTime) {
@@ -602,12 +689,12 @@ function ClientVars(sck) {
     }
 
     this.collateDroneData = function() { 
-        return { tarAng: self.ship.tarAng, thrust: self.ship.thrust, pos: self.ship.pos, vel: self.ship.vel, ang: self.ship.ang };
+        return { tarAng: self.ship.tarAng, thrust: self.ship.thrust, pos: self.ship.pos, vel: self.ship.vel, ang: self.ship.ang, pId: self.pId };
     }
 
     this.fireProjectile = function() {
         var firedProjectile = new Projectile();
-        firedProjectile.pOwn = self.pId;
+        firedProjectile.obj.pOwn = self.pId;
         firedProjectile.obj.pos.x = self.ship.pos.x;
         firedProjectile.obj.pos.y = self.ship.pos.y;
         firedProjectile.obj.vel = { x: Math.sin(Math.PI + self.ship.ang) * 1024, y: Math.cos(Math.PI + self.ship.ang) * 1024 };
@@ -615,7 +702,7 @@ function ClientVars(sck) {
     }
 
     this.playerUpdate = function(data) {
-        if (self.loggedIn) {
+        if (!self.bot && self.loggedIn) {
             // Recieve client information about their input velocities and maybe camera position
             self.ship.tarAng = data.tarAng;
             self.ship.thrust = data.thrust;
@@ -627,10 +714,9 @@ function ClientVars(sck) {
             }
         }
     }
-    this.socket.on('player_update', this.playerUpdate);
 
     this.updatePlayer = function(data) {
-        if (self.loggedIn) {
+        if (!self.bot && self.loggedIn) {
             // Send the client all new object positions, new object information, new player positions, etc.
             self.socket.emit('update_player', data);
         }
@@ -640,6 +726,83 @@ function ClientVars(sck) {
         freePlayerIds.unshift(self.pId);
         self.pId = null;
     }
+
+    if (!self.bot) {
+        this.socket.on('disconnect', self.disconnect);
+        this.initSettings();
+        this.socket.on('login_attempt', self.loginAttempt);
+        this.socket.on('chat_message', self.chatRecieved);
+        this.socket.on('player_update', this.playerUpdate);
+    }
+}
+
+for (let i = 0; i < 128; i++) {
+    clients.push(new Bot());
+}
+
+function Bot() {
+    ClientVars.call(this);
+
+    var self = this;
+
+    this.loggedIn = true;
+    this.nickname = 'Bot ' + self.pId;
+
+    self.clTick = this.tick;
+    this.tick = function(realDeltaTime) {
+        if (self.ship.fireReady) {
+            self.ship.fireTimer = svSettings.projectile.fireRate;
+            self.ship.fireReady = false;
+            self.fireProjectile();
+        }
+
+        var dist = null, plyTarget = false, target = null;
+        for (const i in gameObjects) {
+            if (gameObjects.hasOwnProperty(i)) {
+                if (gameObjects[i].type == OBJECT_TYPE.ASTEROID) {
+                    var tmpDist = Distance(self.ship.pos, gameObjects[i].pos) * (0.8 + Math.random() * 0.4);
+                    if (dist == null || tmpDist < dist) {
+                        dist = tmpDist;
+                        target = { x: gameObjects[i].pos.x - self.ship.pos.x, y: gameObjects[i].pos.y - self.ship.pos.y };;
+                    }
+                }
+            }
+        }
+        /*for (const i in plys) {
+            if (plys.hasOwnProperty(i)) {
+                var tmpDist = Distance(self.ship.pos, plys[i].pos);
+                if (dist == null || (plyTarget == false && tmpDist * 0.25 < dist) || tmpDist < dist) {
+                    dist = tmpDist;
+                    plyTarget = true;
+                    diff = { x: plys[i].pos.x - self.ship.pos.x, y: plys[i].pos.y - self.ship.pos.y };;
+                }
+            }
+        }*/
+        
+        if (target != null) {
+            self.ship.thrust = (Magnitude(target) - influenceZones.deadzoneRad) / influenceZones.influenceRad;
+            if (self.ship.thrust > 1) { self.ship.thrust = 1; }
+            else if (self.ship.thrust < 0) { self.ship.thrust = 0; }
+            if (self.ship.thrust <= 0.001) {
+                self.ship.thrust = 0;
+            }
+            self.ship.tarAng = Math.atan2(target.x, target.y) + Math.PI;
+            if (self.ship.tarAng > Math.PI) { self.ship.tarAng -= pi2; }
+            else if (self.ship.tarAng < -Math.PI) { self.ship.tarAng += pi2; }
+        }
+        else {
+            self.ship.thruster.thrust = 0;
+        }
+
+        self.clTick(realDeltaTime);
+    }
+
+    delete self.disconnect;
+    delete self.loginAttempt;
+    delete self.initSettings;
+    delete self.loginAttempt;
+    delete self.chatRecieved;
+    delete self.playerUpdate;
 }
 
 // Client connection handler
