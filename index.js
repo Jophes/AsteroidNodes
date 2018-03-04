@@ -3,6 +3,11 @@ var app = express();
 var server = require('http').createServer(app);
 var io = require('socket.io')(server);
 const port = process.env.PORT || 8080;
+/*
+var controllers = require('./objects.js');
+
+var ClientVars = controllers.client;
+var Bot = controllers.bot;*/
 
 const pi2 = Math.PI * 2;
 // ---- CONFIG VARS ----
@@ -292,8 +297,9 @@ function Projectile() {
     this.checkCollisions = function() {
         for (const i in clients) {
             if (clients.hasOwnProperty(i)) {
-                if (clients[i].pId != self.obj.pOwn && Distance(self.pos, clients[i].ship.pos) <= 14) {
+                if (clients[i].isActive() && clients[i].pId != self.obj.pOwn && Distance(self.pos, clients[i].ship.pos) <= 14) {
                     self.life = 0;
+                    clients[i].kill(clients[self.obj.pOwn].nickname);
                     break;
                 }
             }
@@ -401,7 +407,7 @@ function Asteroid() {
 }
 
 // -- Socket IO --
-var clients = [];
+var clients = {};
 var gameObjects = {};
 
 for (var i = 0; i < 16; i++) {
@@ -417,7 +423,8 @@ for (var i = 0; i < 1; i++) {
     gameObjects[asteroid.oId] = asteroid;
 }*/
 for (let i = 0; i < 32; i++) {
-    clients.push(new Bot());
+    var newBot = new Bot();
+    clients[newBot.pId] = newBot;
 }
 
 function systemLog(message, tag = '') {
@@ -432,6 +439,17 @@ function broadcastSysMsg(msg) {
             clients[key].socket.emit('system_message', sendData);
         }
     }
+    systemLog(msg, 'GAME')
+}
+
+function broadcastExcluded(msg, excludedId) {
+    var sendData = {message: msg};
+    for (var key in clients) {
+        if (clients.hasOwnProperty(key) && !clients[key].bot && key != excludedId) {
+            clients[key].socket.emit('system_message', sendData);
+        }
+    }
+    systemLog(msg, 'GAME')
 }
 
 function broadcastMessage(sender, msg) {
@@ -450,7 +468,7 @@ function Tick() {
     var realDeltaTimeMS = (currentSysTime[0] - lastUpdateTime[0]) * 1000 + (currentSysTime[1] - lastUpdateTime[1]) / 1000000;
     var realDeltaTime = realDeltaTimeMS / 1000;
     if (realDeltaTimeMS > deltaTime * 1350) {
-        systemLog('Warning, Heavy load detected, Tick time: ' + realDeltaTimeMS + 'ms Threshold: ' + deltaTime * 1350 + 'ms Optimal: ' + deltaTime * 1000 + 'ms');
+        //systemLog('Warning, Heavy load detected, Tick time: ' + realDeltaTimeMS + 'ms Threshold: ' + deltaTime * 1350 + 'ms Optimal: ' + deltaTime * 1000 + 'ms');
     }
     lastUpdateTime = currentSysTime;
 
@@ -469,8 +487,6 @@ function Tick() {
                 case OBJECT_TYPE.ASTEROID:
                     // Update asteroid positions, spawn new ones if needed
                     if (gameObjects[i].outOfBounds()) {
-                        /*gameObjects[i] = new Asteroid();
-                        gameObjects[i].setSpawnPos();*/
                         gameObjects[i].respawn();
                     }
                     break;
@@ -480,7 +496,7 @@ function Tick() {
         }
     }
 
-
+    // Post tick for projectiles, check if they're colliding with any players or asteroids and take action
     for (const i in gameObjects) {
         if (gameObjects.hasOwnProperty(i)) {
             gameObjects[i].postTick();
@@ -505,7 +521,7 @@ function Tick() {
         var plyData = {};
         for (var i in clients) {
             if (clients.hasOwnProperty(i)) {
-                if (clients[i].loggedIn) {
+                if (clients[i].isActive()) {
                     plyData[clients[i].pId] = clients[i].collateDroneData();
                 }
             }
@@ -522,7 +538,7 @@ function Tick() {
 
         for (var i in clients) {
             if (clients.hasOwnProperty(i)) {
-                if (clients[i].loggedIn) {
+                if (clients[i].isActive()) {
                     var tmp = plyData[clients[i].pId];
                     delete plyData[clients[i].pId];
                     clients[i].updatePlayer({user: clients[i].collateHostData(), plys: plyData, objs: objData});
@@ -534,10 +550,12 @@ function Tick() {
 }
 setInterval(Tick, shSettings.tickInterval);
 
+
 // Client object constructor
 function ClientVars(sck) {
     var self = this;
     this.bot = false;
+    this.alive = false;
     if (sck == null) {
         this.bot = true;
     }
@@ -565,9 +583,35 @@ function ClientVars(sck) {
         console.log(GetTime() + ' [SOCKET.IO] ' + tag + message + (!self.bot ? ' {' + this.socket.request.connection.remoteAddress + ':' + this.socket.request.connection.remotePort + '}' : '{BOT}'));
     };
 
+    this.isActive = function() {
+        return self.alive && self.loggedIn;
+    }
+    
+    this.kill = function(killerNick) {
+        self.alive = false;
+        self.loggedIn = false;
+
+        broadcastExcluded(self.nickname + ' was killed by ' + killerNick, self.pId);
+
+        if (!self.bot) {
+            self.socket.emit('update_death', { killer: killerNick });
+        }
+
+        for (const i in gameObjects) {
+            if (gameObjects.hasOwnProperty(i)) {
+                if (gameObjects[i].type == OBJECT_TYPE.PROJECTILE && gameObjects[i].obj.pOwn == self.pId) {
+                    gameObjects[i].destroy();
+                    delete gameObjects[i];
+                }
+            }
+        }
+
+        delete self.nickname;
+    }
+
     // Disconnect method
     this.disconnect = function() {
-        clients.splice(clients.indexOf(self), 1);
+        delete clients[self.pId];
         self.destroy();
         self.log('Client ' + (self.loggedIn ? ('"' + self.nickname + '" ') : '') + 'has disconnected');
     };
@@ -580,7 +624,7 @@ function ClientVars(sck) {
     // -- LOGIN --
     this.nickname = null;
     this.loginAttempt = function(data) {
-        if (self.loggedIn === false) {
+        if (!self.bot && !self.loggedIn) {
             var loginResponse = responses.login.error, loginSuccess = false;
             if (data.nick.length < svSettings.login.minNickLength) {
                 loginResponse = responses.login.tooShort;
@@ -612,6 +656,7 @@ function ClientVars(sck) {
             }
             if (loginSuccess) {
                 self.loggedIn = true;
+                self.alive = true;
                 self.nickname = data.nick;
                 self.log('Client sucessfully logged in with nickname: "' + data.nick + '"');
             }
@@ -632,7 +677,7 @@ function ClientVars(sck) {
     var lastMessageTime = Date.now() - shSettings.chatSpamTime;
     // Chat message recieved
     this.chatRecieved = function(data) {
-        if (self.loggedIn) {
+        if (!self.bot && self.isActive()) {
             if (lastMessageTime + shSettings.chatSpamTime <= Date.now()) {
                 self.log(data.message, 'CHAT');
                 broadcastMessage(self, data.message);
@@ -705,7 +750,7 @@ function ClientVars(sck) {
     }
 
     this.playerUpdate = function(data) {
-        if (!self.bot && self.loggedIn) {
+        if (!self.bot && self.isActive()) {
             // Recieve client information about their input velocities and maybe camera position
             self.ship.tarAng = data.tarAng;
             self.ship.thrust = data.thrust;
@@ -719,7 +764,7 @@ function ClientVars(sck) {
     }
 
     this.updatePlayer = function(data) {
-        if (!self.bot && self.loggedIn) {
+        if (!self.bot && self.isActive()) {
             // Send the client all new object positions, new object information, new player positions, etc.
             self.socket.emit('update_player', data);
         }
@@ -739,61 +784,65 @@ function ClientVars(sck) {
     }
 }
 
+
 function Bot() {
     ClientVars.call(this);
 
     var self = this;
 
     this.loggedIn = true;
+    this.alive = true;
     this.nickname = 'Bot ' + self.pId;
 
     self.clTick = this.tick;
     this.tick = function(realDeltaTime) {
-        if (self.ship.fireReady) {
-            self.ship.fireTimer = svSettings.projectile.fireRate;
-            self.ship.fireReady = false;
-            self.fireProjectile();
-        }
-
-        var dist = null, plyTarget = false, target = null;
-        for (const i in gameObjects) {
-            if (gameObjects.hasOwnProperty(i)) {
-                if (gameObjects[i].type == OBJECT_TYPE.ASTEROID) {
-                    var tmpDist = Distance(self.ship.pos, gameObjects[i].pos) * (0.8 + Math.random() * 0.4);
-                    if (dist == null || tmpDist < dist) {
-                        dist = tmpDist;
-                        target = { x: gameObjects[i].pos.x - self.ship.pos.x, y: gameObjects[i].pos.y - self.ship.pos.y };;
+        if (self.alive) {
+            if (self.ship.fireReady) {
+                self.ship.fireTimer = svSettings.projectile.fireRate;
+                self.ship.fireReady = false;
+                self.fireProjectile();
+            }
+    
+            var dist = null, plyTarget = false, target = null;
+            for (const i in gameObjects) {
+                if (gameObjects.hasOwnProperty(i)) {
+                    if (gameObjects[i].type == OBJECT_TYPE.ASTEROID) {
+                        var tmpDist = Distance(self.ship.pos, gameObjects[i].pos) * (0.8 + Math.random() * 0.4);
+                        if (dist == null || tmpDist < dist) {
+                            dist = tmpDist;
+                            target = { x: gameObjects[i].pos.x - self.ship.pos.x, y: gameObjects[i].pos.y - self.ship.pos.y };;
+                        }
                     }
                 }
             }
-        }
-        /*for (const i in plys) {
-            if (plys.hasOwnProperty(i)) {
-                var tmpDist = Distance(self.ship.pos, plys[i].pos);
-                if (dist == null || (plyTarget == false && tmpDist * 0.25 < dist) || tmpDist < dist) {
-                    dist = tmpDist;
-                    plyTarget = true;
-                    diff = { x: plys[i].pos.x - self.ship.pos.x, y: plys[i].pos.y - self.ship.pos.y };;
+            //for (const i in plys) {
+            //    if (plys.hasOwnProperty(i)) {
+            //        var tmpDist = Distance(self.ship.pos, plys[i].pos);
+            //        if (dist == null || (plyTarget == false && tmpDist * 0.25 < dist) || tmpDist < dist) {
+            //            dist = tmpDist;
+            //            plyTarget = true;
+            //            diff = { x: plys[i].pos.x - self.ship.pos.x, y: plys[i].pos.y - self.ship.pos.y };;
+            //       }
+            //    }
+           // }
+            
+            if (target != null) {
+                self.ship.thrust = (Magnitude(target) - influenceZones.deadzoneRad) / influenceZones.influenceRad;
+                if (self.ship.thrust > 1) { self.ship.thrust = 1; }
+                else if (self.ship.thrust < 0) { self.ship.thrust = 0; }
+                if (self.ship.thrust <= 0.001) {
+                    self.ship.thrust = 0;
                 }
+                self.ship.tarAng = Math.atan2(target.x, target.y) + Math.PI;
+                if (self.ship.tarAng > Math.PI) { self.ship.tarAng -= pi2; }
+                else if (self.ship.tarAng < -Math.PI) { self.ship.tarAng += pi2; }
             }
-        }*/
-        
-        if (target != null) {
-            self.ship.thrust = (Magnitude(target) - influenceZones.deadzoneRad) / influenceZones.influenceRad;
-            if (self.ship.thrust > 1) { self.ship.thrust = 1; }
-            else if (self.ship.thrust < 0) { self.ship.thrust = 0; }
-            if (self.ship.thrust <= 0.001) {
-                self.ship.thrust = 0;
+            else {
+                self.ship.thruster.thrust = 0;
             }
-            self.ship.tarAng = Math.atan2(target.x, target.y) + Math.PI;
-            if (self.ship.tarAng > Math.PI) { self.ship.tarAng -= pi2; }
-            else if (self.ship.tarAng < -Math.PI) { self.ship.tarAng += pi2; }
+    
+            self.clTick(realDeltaTime);
         }
-        else {
-            self.ship.thruster.thrust = 0;
-        }
-
-        self.clTick(realDeltaTime);
     }
 
     delete self.disconnect;
@@ -809,7 +858,7 @@ function ClientConnected(socket) {
     // Create a new client object
     var cl = new ClientVars(socket)
     cl.log('Client has connected');
-    clients.push(cl);
+    clients[cl.pId] = cl;
 }
 
 io.on('connection', ClientConnected)

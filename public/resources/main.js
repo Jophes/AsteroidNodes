@@ -11,6 +11,7 @@ var pi2 = Math.PI * 2;
 var messageBuffer = [], clearBufferTimeoutId;
 var lastUpdate;
 
+var alive = false;
 var camPos = {x: 0, y: 0};
 
 // Defaults, may be updated by the server
@@ -665,8 +666,20 @@ function GameInit() {
     window.addEventListener('mousedown', user.handleMouseDown);
     window.addEventListener('mouseup', user.handleMouseUp);
 
+    alive = true;
     requestAnimationFrame(Draw);
     updateId = setInterval(Update, svSettings.updateInterval);
+}
+
+function GameDestroy() {
+    document.removeEventListener('keypress', HandleKeyPress);
+    document.removeEventListener('keyup', HandleKeyRelease);
+
+    window.removeEventListener('mousemove', user.handleMouseMove);
+    window.removeEventListener('mousedown', user.handleMouseDown);
+    window.removeEventListener('mouseup', user.handleMouseUp);
+
+    clearInterval(updateId);
 }
 
 //  ----------------------------
@@ -688,6 +701,15 @@ function RecieveSettings(data) {
     CanvasResize();
 }
 socket.on('settings_init', RecieveSettings);
+
+function PlayerDied(data) {
+    console.log(data);
+    alive = false;
+    GameDestroy();
+    loginBox.container.style = '';
+    AddMessage('You were killed by: ' + data.killer);
+}
+socket.on('update_death', PlayerDied);
 
 function RecieveMessage(data) {
     if (messageBox.list) {
@@ -780,68 +802,73 @@ function Update() {
 // -- Draw --
 //  --------
 
+function Clear() {
+    // Clear the screen
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
 function Draw(now) {
     if (!lastUpdate) { lastUpdate = now }
     var deltaTime = (now - lastUpdate) * 0.001;
     lastUpdate = now;
-
-    // Clear the screen
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // -- Tick -- 
-    // Perform update on gameObjects
-    for (var i in gameObjects) {
-        if (gameObjects.hasOwnProperty(i)) {
-            gameObjects[i].tick(deltaTime);
+    Clear();
+    
+    if (alive) {
+        // -- Tick -- 
+        // Perform update on gameObjects
+        for (var i in gameObjects) {
+            if (gameObjects.hasOwnProperty(i)) {
+                gameObjects[i].tick(deltaTime);
+            }
         }
-    }
-
-    // Perform update on player input
-    for (var i in plys) {
-        if (plys.hasOwnProperty(i)) {
-            plys[i].tick(Date.now());
+    
+        // Perform update on player input
+        for (var i in plys) {
+            if (plys.hasOwnProperty(i)) {
+                plys[i].tick(Date.now());
+            }
         }
-    }
-    user.tick(Date.now());
-
-    // -- Draw --
-    // Draw the grid
-    ctx.strokeStyle = colors.grid;
-    ctx.beginPath();
-    for (var i = 0; i <= svSettings.grid.count.width; i++) {
-        var cellPos = { x: camPos.x + svSettings.grid.pos.x + i * svSettings.grid.cell.width, y: camPos.y + svSettings.grid.pos.y };
-        ctx.moveTo(cellPos.x, cellPos.y);
-        ctx.lineTo(cellPos.x, cellPos.y + svSettings.grid.cell.height * svSettings.grid.count.height);
-    }
-
-    for (var i = 0; i <= svSettings.grid.count.height; i++) {
-        var cellPos = { x: camPos.x + svSettings.grid.pos.x, y: camPos.y + svSettings.grid.pos.y + i * svSettings.grid.cell.width };
-        ctx.moveTo(cellPos.x, cellPos.y);
-        ctx.lineTo(cellPos.x + svSettings.grid.cell.width * svSettings.grid.count.width, cellPos.y);
-    }
-    ctx.stroke();
-
-    for (const i in gameObjects) {
-        if (gameObjects.hasOwnProperty(i)) {
-            gameObjects[i].draw();
+        user.tick(Date.now());
+    
+        // -- Draw --
+        // Draw the grid
+        ctx.strokeStyle = colors.grid;
+        ctx.beginPath();
+        for (var i = 0; i <= svSettings.grid.count.width; i++) {
+            var cellPos = { x: camPos.x + svSettings.grid.pos.x + i * svSettings.grid.cell.width, y: camPos.y + svSettings.grid.pos.y };
+            ctx.moveTo(cellPos.x, cellPos.y);
+            ctx.lineTo(cellPos.x, cellPos.y + svSettings.grid.cell.height * svSettings.grid.count.height);
         }
-    }
-
-    // Draw the current user on top of everything so they can always see themselves
-    for (const i in plys) {
-        if (plys.hasOwnProperty(i)) {
-            plys[i].draw();
+    
+        for (var i = 0; i <= svSettings.grid.count.height; i++) {
+            var cellPos = { x: camPos.x + svSettings.grid.pos.x, y: camPos.y + svSettings.grid.pos.y + i * svSettings.grid.cell.width };
+            ctx.moveTo(cellPos.x, cellPos.y);
+            ctx.lineTo(cellPos.x + svSettings.grid.cell.width * svSettings.grid.count.width, cellPos.y);
         }
+        ctx.stroke();
+    
+        for (const i in gameObjects) {
+            if (gameObjects.hasOwnProperty(i)) {
+                gameObjects[i].draw();
+            }
+        }
+    
+        // Draw the current user on top of everything so they can always see themselves
+        for (const i in plys) {
+            if (plys.hasOwnProperty(i)) {
+                plys[i].draw();
+            }
+        }
+        user.draw();
+    
+        // Clear the sides of the grid so the player can't see the objects outside the grid being removed
+        ctx.clearRect(0, 0, svSettings.grid.cutoffs.sizes.width, canvas.height);
+        ctx.clearRect(svSettings.grid.cutoffs.offsets.x, 0, svSettings.grid.cutoffs.sizes.width, canvas.height);
+        ctx.clearRect(0, 0, canvas.width, svSettings.grid.cutoffs.sizes.height);
+        ctx.clearRect(0, svSettings.grid.cutoffs.offsets.y, canvas.width, svSettings.grid.cutoffs.sizes.height);
+    
+        requestAnimationFrame(Draw);
     }
-    user.draw();
-
-    // Clear the sides of the grid so the player can't see the objects outside the grid being removed
-    ctx.clearRect(0, 0, svSettings.grid.cutoffs.sizes.width, canvas.height);
-    ctx.clearRect(svSettings.grid.cutoffs.offsets.x, 0, svSettings.grid.cutoffs.sizes.width, canvas.height);
-    ctx.clearRect(0, 0, canvas.width, svSettings.grid.cutoffs.sizes.height);
-    ctx.clearRect(0, svSettings.grid.cutoffs.offsets.y, canvas.width, svSettings.grid.cutoffs.sizes.height);
-
-    requestAnimationFrame(Draw);
 }
 
 //  --------
