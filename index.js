@@ -404,7 +404,7 @@ function Asteroid() {
 var clients = [];
 var gameObjects = {};
 
-for (var i = 0; i < 64; i++) {
+for (var i = 0; i < 16; i++) {
     var asteroid = new Asteroid();
     asteroid.obj.pos.x = (Math.random() * 2 - 1) * shSettings.grid.center.x;
     asteroid.obj.pos.y = (Math.random() * 2 - 1) * shSettings.grid.center.y;
@@ -416,6 +416,9 @@ for (var i = 0; i < 1; i++) {
     asteroid.obj.pos.y = 128;
     gameObjects[asteroid.oId] = asteroid;
 }*/
+for (let i = 0; i < 32; i++) {
+    clients.push(new Bot());
+}
 
 function systemLog(message, tag = '') {
     if (tag != '') { tag = '<' + tag + '> '; }
@@ -734,10 +737,6 @@ function ClientVars(sck) {
         this.socket.on('chat_message', self.chatRecieved);
         this.socket.on('player_update', this.playerUpdate);
     }
-}
-
-for (let i = 0; i < 128; i++) {
-    clients.push(new Bot());
 }
 
 function Bot() {
