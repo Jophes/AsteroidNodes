@@ -14,9 +14,9 @@ const pi2 = Math.PI * 2;
 const shSettings = { 
     chatSpamTime: 250, // time that must elapse between each chat message in milliseconds
     tickRate: 60, // 40 updates per second
-    tickInterval: (1000 / 60),
+    tickInterval: (1000 / 24),
     syncRate: 30,
-    syncInterval: (1000 / 30),
+    syncInterval: (1000 / 24),
     grid: {
         cell: {width: 96, height: 96},
         count: {width: 24, height: 24},
@@ -387,8 +387,8 @@ function Asteroid() {
             self.obj.pos.y = (Math.random() * 2 - 1) * shSettings.grid.center.y;
         }
         
-        self.obj.pos.x = (Math.random() * 2 - 1) * shSettings.grid.center.x;
-        self.obj.pos.y = (Math.random() * 2 - 1) * shSettings.grid.center.y;
+        /*self.obj.pos.x = (Math.random() * 2 - 1) * shSettings.grid.center.x;
+        self.obj.pos.y = (Math.random() * 2 - 1) * shSettings.grid.center.y;*/
     }
 
     this.outOfBounds = function() {

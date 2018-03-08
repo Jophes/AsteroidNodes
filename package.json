@@ -2,14 +2,15 @@
   "name": "nodechat",
   "version": "0.0.0",
   "description": "A simple chat using socket.io",
-  "main": "index.js",
+  "main": "synaptic_test.js",
   "author": "Jophes",
   "private": true,
   "dependencies": {
     "express": "^4.16.1",
-    "socket.io": "^2.0.3"
+    "socket.io": "^2.0.3",
+    "synaptic": "^1.1.4"
   },
   "scripts": {
-    "start": "node index.js"
+    "start": "node synaptic_test.js"
   }
 }

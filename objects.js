@@ -21,7 +21,7 @@ const shSettings = {
     }
 };
 
-
+ 
 const svSettings = { 
     login: {
         minNickLength: 2, // Minimum number of characters in a nickname
@@ -42,10 +42,6 @@ var influenceZones = {
     influenceRad: 64,
     totalRad: 14 + 64
 };
-
-const syncTime = shSettings.syncInterval / 1000;
-const deltaTime = shSettings.tickInterval / 1000;
-
 
 var lastPlayerId = 1, freePlayerIds = [];
 var lastObjectId = 1, freeObjectIds = [];
