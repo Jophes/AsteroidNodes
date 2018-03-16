@@ -3,11 +3,14 @@ var app = express();
 var server = require('http').createServer(app);
 var io = require('socket.io')(server);
 const port = process.env.PORT || 8080;
+const uuidv4 = require('uuid/v4');
 /*
 var controllers = require('./objects.js');
 
 var ClientVars = controllers.client;
 var Bot = controllers.bot;*/
+
+var stats = {};
 
 const pi2 = Math.PI * 2;
 // ---- CONFIG VARS ----
@@ -562,6 +565,7 @@ function ClientVars(sck) {
         this.bot = true;
     }
     this.pId = GeneratePlayerId();
+    this.uId = uuidv4();
     this.ship = {
         tarAng: 0,
         thrust: 0,
