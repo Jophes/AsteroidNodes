@@ -10,8 +10,6 @@ var controllers = require('./objects.js');
 var ClientVars = controllers.client;
 var Bot = controllers.bot;*/
 
-var stats = {};
-
 const pi2 = Math.PI * 2;
 // ---- CONFIG VARS ----
 const shSettings = { 
@@ -185,8 +183,7 @@ for(var i in servePages) {
 }
 
 function HandleHomeGetRequest(req, res, next) {
-    if (req.method == 'GET' && renameTable.hasOwnProperty(req.url))
-    {
+    if (req.method == 'GET' && renameTable.hasOwnProperty(req.url)) {
         var reqUrl = renameTable[req.url];
         //AppLog('Serving "' + reqUrl + '" to', req);
         var options = {
@@ -207,8 +204,12 @@ function HandleHomeGetRequest(req, res, next) {
             }
         });
     }
-    else
-    {
+    else if (req.url == '/statistics') {
+        AppLog('Serving "' + req.url + '" to', req);
+        res.setHeader('Content-Type', 'application/json');
+        res.send(JSON.stringify(stats.sessions));
+    }
+    else {
         AppLog('Recieved invalid request for ' + req.url + ' from', req);
         next();
     }
@@ -217,7 +218,61 @@ function HandleHomeGetRequest(req, res, next) {
 app.use(LogRequests);
 app.use(HandleHomeGetRequest);
 
-// Object constructors-
+// Object constructors
+
+function Stats() {
+    var self = this;
+
+    self.sessions = {};
+
+    this.addSession = function(uId, pId, nickname, isBot) {
+        self.sessions[uId] = {
+            id: uId,
+            pId: pId,
+            spawns: -1,
+            instances: {},
+            name: nickname,
+            bot: isBot,
+            start: Date.now(),
+            end: null
+        };
+        //console.log('uId: "' + uId + '" session started at ' + self.sessions[uId].start);
+    }
+
+    this.addInstance = function(uId) {
+        self.sessions[uId].spawns++;
+        self.sessions[uId].instances[self.sessions[uId].spawns] = {
+            hits: [],
+            start: Date.now(),
+            end: null
+        };
+        //console.log('uId: "' + uId + '" instance: "' + self.sessions[uId].spawns + '" started at ' + self.sessions[uId].instances[self.sessions[uId].spawns].start);
+    }
+
+    this.projectileHit = function(originId, hitId, projId) {
+        self.sessions[originId].instances[self.sessions[originId].spawns].hits.push({
+            hitUId: hitId, // The uId of the player that got hurt
+            hitPos: { x: clients[self.sessions[hitId].pId].ship.pos.x, y: clients[self.sessions[hitId].pId].ship.pos.y }, // Pos of the player that got hurt at the time of getting hurt
+            originPos: { x: clients[self.sessions[originId].pId].ship.pos.x, y: clients[self.sessions[originId].pId].ship.pos.y }, // Pos of the player that fired the projectile at the time of hit
+            projPos: { x: gameObjects[projId].pos.x, y: gameObjects[projId].pos.y },
+            time: Date.now()
+        });
+        //console.log('Projecitle hit player: "' + self.sessions[hitId].name + '" fired from: "' + self.sessions[originId].name + '"');
+    }
+
+    this.endInstance = function(uId) {
+        self.sessions[uId].instances[self.sessions[uId].spawns].end = Date.now();
+        //console.log('uId: "' + uId + '" instance: "' + self.sessions[uId].spawns + '" ended at ' + self.sessions[uId].instances[self.sessions[uId].spawns].end);
+    }
+
+    this.endSession = function(uId) {
+        self.sessions[uId].end = Date.now();
+        //console.log('uId: "' + uId + '" session ended at ' + self.sessions[uId].end);
+    }
+}
+
+var stats = new Stats();
+
 function GameObject() {
     var self = this;
 
@@ -302,6 +357,7 @@ function Projectile() {
             if (clients.hasOwnProperty(i)) {
                 if (clients[i].isActive() && clients[i].pId != self.obj.pOwn && Distance(self.pos, clients[i].ship.pos) <= 6 + 8 * clients[i].health) {
                     self.life = 0;
+                    stats.projectileHit(clients[self.obj.pOwn].uId, clients[i].uId, self.oId);
                     clients[i].damage(self.obj.pOwn);
                     //clients[i].kill(clients[self.obj.pOwn].nickname);
                     break;
@@ -558,6 +614,7 @@ setInterval(Tick, shSettings.tickInterval);
 // Client object constructor
 function ClientVars(sck) {
     var self = this;
+
     this.bot = false;
     this.alive = false;
     this.health = 0;
@@ -565,7 +622,8 @@ function ClientVars(sck) {
         this.bot = true;
     }
     this.pId = GeneratePlayerId();
-    this.uId = uuidv4();
+    this.uId = null;
+
     this.ship = {
         tarAng: 0,
         thrust: 0,
@@ -581,6 +639,12 @@ function ClientVars(sck) {
     this.socket = sck;
     this.loggedIn = false;
 
+    this.newSession = function() {
+        self.uId = uuidv4();
+        self.loggedIn = true;
+        stats.addSession(self.uId, self.pId, self.nickname, self.bot);
+    }
+
     // Create log method 
     this.log = function(message, tag = '') {
         if (tag != '') { tag = '<' + tag + '> '; }
@@ -592,6 +656,8 @@ function ClientVars(sck) {
         self.alive = true;
         self.ship.pos.x = (Math.random() * 2 - 1) * shSettings.grid.center.x;
         self.ship.pos.y = (Math.random() * 2 - 1) * shSettings.grid.center.y;
+        stats.addInstance(self.uId);
+        broadcastExcluded(self.nickname + ' has respawned.', self.pId);
     }
 
     this.isActive = function() {
@@ -622,6 +688,8 @@ function ClientVars(sck) {
                 }
             }
         }
+
+        stats.endInstance(self.uId);
     }
 
     // Disconnect method
@@ -671,8 +739,9 @@ function ClientVars(sck) {
             }
             if (loginSuccess) {
                 self.loggedIn = true;
-                self.respawn();
                 self.nickname = data.nick;
+                self.newSession();
+                self.respawn();
                 self.log('Client sucessfully logged in with nickname: "' + data.nick + '"');
             }
             else {
@@ -794,15 +863,14 @@ function ClientVars(sck) {
         if (!self.bot && self.loggedIn) {
             self.loggedIn = false;
             broadcastExcluded(self.nickname + ' has disconnected.', self.pId);
+            stats.endSession(self.uId);
             delete self.nickname;
         }
     }
     
     this.attemptRespawn = function() {
         if (!self.bot && self.loggedIn && !self.alive) {
-            console.log("Attempted Respawn");
             self.respawn();
-            broadcastExcluded(self.nickname + ' has respawned.', self.pId);
         }
     }
 
@@ -825,7 +893,14 @@ function Bot() {
 
     this.loggedIn = true;
     this.nickname = 'Bot ' + self.pId;
+    this.newSession();
     this.respawn();
+
+    this.clKill = this.kill;
+    this.kill = function(killerId) {
+        self.clKill(killerId);
+        setTimeout(self.respawn, 2000);
+    }
 
     self.clTick = this.tick;
     this.tick = function(realDeltaTime) {
