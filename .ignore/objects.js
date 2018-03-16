@@ -1,88 +1,27 @@
 module.exports = { };
 
-const pi2 = Math.PI * 2;
-// ---- CONFIG VARS ----
-const shSettings = { 
-    chatSpamTime: 250, // time that must elapse between each chat message in milliseconds
-    tickRate: 60, // 40 updates per second
-    tickInterval: (1000 / 60),
-    syncRate: 30,
-    syncInterval: (1000 / 30),
-    grid: {
-        cell: {width: 96, height: 96},
-        count: {width: 24, height: 24},
-        center: {x: 0, y: 0},
-        pos: {x: 0, y: 0},
-        offset: {x: 0, y: 0},
-        cutoffs: {
-            offsets: {x: 0, y: 0},
-            sizes: {width: 0, height: 0}
-        }
-    }
-};
+const consts = require('./constants.js');
 
- 
-const svSettings = { 
-    login: {
-        minNickLength: 2, // Minimum number of characters in a nickname
-        maxNickLength: 16, // Maximum number of characters in a nickname
-        whitelistedCharacters: /^[0-9a-zA-Z]*$/ // Legal characters in a nickname /^[a-zA-Z0-9- ]*$/
-    },
-    projectile: {
-        lifetime: 2.5,
-        fireRate: 0.25
-    }
-};
-shSettings.grid.center = {
-    x: shSettings.grid.cell.width * shSettings.grid.count.width * -0.5, 
-    y: shSettings.grid.cell.height * shSettings.grid.count.height * -0.5
-};
-var influenceZones = {
-    deadzoneRad: 14,
-    influenceRad: 64,
-    totalRad: 14 + 64
-};
-
-var lastPlayerId = 1, freePlayerIds = [];
-var lastObjectId = 1, freeObjectIds = [];
-
-function GeneratePlayerId() {
-    if (freePlayerIds.length > 0) {
-        return freePlayerIds.pop();
-    }
-    else {
-        return lastPlayerId++;
-    }
-}
-
-function GenerateObjectId() {
-    if (freeObjectIds.length > 0) {
-        return freeObjectIds.pop();
-    }
-    else {
-        return lastObjectId++;
-    }
-}
-
-module.exports.client = function (sck) {
+module.exports.client = function (sck, id, main) {
     var self = this;
+    this.main = main;
     this.bot = false;
     this.alive = false;
+    this.pId = id;
     if (sck == null) {
         this.bot = true;
     }
-    this.pId = GeneratePlayerId();
     this.ship = {
         tarAng: 0,
         thrust: 0,
         pos: {x: 0, y: 0},
         vel: {x: 0, y: 0},
         ang: 0,
-        fireTimer: svSettings.projectile.fireRate,
+        fireTimer: consts.sv.projectile.fireRate,
         fireReady: false
     };
-    this.ship.pos.x = (Math.random() * 2 - 1) * shSettings.grid.center.x;
-    this.ship.pos.y = (Math.random() * 2 - 1) * shSettings.grid.center.y;
+    this.ship.pos.x = (Math.random() * 2 - 1) * consts.sh.grid.center.x;
+    this.ship.pos.y = (Math.random() * 2 - 1) * consts.sh.grid.center.y;
     this.sent = {
         fireReady: false
     }
@@ -92,7 +31,7 @@ module.exports.client = function (sck) {
     // Create log method 
     this.log = function(message, tag = '') {
         if (tag != '') { tag = '<' + tag + '> '; }
-        console.log(GetTime() + ' [SOCKET.IO] ' + tag + message + (!self.bot ? ' {' + this.socket.request.connection.remoteAddress + ':' + this.socket.request.connection.remotePort + '}' : '{BOT}'));
+        console.log(self.main.GetTime() + ' [SOCKET.IO] ' + tag + message + (!self.bot ? ' {' + this.socket.request.connection.remoteAddress + ':' + this.socket.request.connection.remotePort + '}' : '{BOT}'));
     };
 
     this.isActive = function() {
@@ -103,17 +42,17 @@ module.exports.client = function (sck) {
         self.alive = false;
         self.loggedIn = false;
 
-        broadcastExcluded(self.nickname + ' was killed by ' + killerNick, self.pId);
+        self.main.broadcastExcluded(self.nickname + ' was killed by ' + killerNick, self.pId);
 
         if (!self.bot) {
             self.socket.emit('update_death', { killer: killerNick });
         }
 
-        for (const i in gameObjects) {
-            if (gameObjects.hasOwnProperty(i)) {
-                if (gameObjects[i].type == OBJECT_TYPE.PROJECTILE && gameObjects[i].obj.pOwn == self.pId) {
-                    gameObjects[i].destroy();
-                    delete gameObjects[i];
+        for (const i in self.main.gameObjects) {
+            if (self.main.gameObjects.hasOwnProperty(i)) {
+                if (self.main.gameObjects[i].type == consts.OBJECT_TYPE.PROJECTILE && self.main.gameObjects[i].obj.pOwn == self.pId) {
+                    self.main.gameObjects[i].destroy();
+                    delete self.main.gameObjects[i];
                 }
             }
         }
@@ -123,35 +62,35 @@ module.exports.client = function (sck) {
 
     // Disconnect method
     this.disconnect = function() {
-        delete clients[self.pId];
+        delete self.main.clients[self.pId];
         self.destroy();
         self.log('Client ' + (self.loggedIn ? ('"' + self.nickname + '" ') : '') + 'has disconnected');
     };
 
     // Init settings
     this.initSettings = function() {
-        self.socket.emit('settings_init', { settings: shSettings });
+        self.socket.emit('settings_init', { settings: consts.sh });
     }
 
     // -- LOGIN --
     this.nickname = null;
     this.loginAttempt = function(data) {
         if (!self.bot && !self.loggedIn) {
-            var loginResponse = responses.login.error, loginSuccess = false;
-            if (data.nick.length < svSettings.login.minNickLength) {
-                loginResponse = responses.login.tooShort;
+            var loginResponse = consts.responses.login.error, loginSuccess = false;
+            if (data.nick.length < consts.sv.login.minNickLength) {
+                loginResponse = consts.responses.login.tooShort;
             }
-            else if (data.nick.length > svSettings.login.maxNickLength) {
-                loginResponse = responses.login.tooLong;
+            else if (data.nick.length > consts.sv.login.maxNickLength) {
+                loginResponse = consts.responses.login.tooLong;
             }
-            else if (!data.nick.match(svSettings.login.whitelistedCharacters)) {
-                loginResponse = responses.login.illegalChars;
+            else if (!data.nick.match(consts.sv.login.whitelistedCharacters)) {
+                loginResponse = consts.responses.login.illegalChars;
             }
             else {
                 var nicknameInuse = false;
-                for (var key in clients) {
-                    if (clients.hasOwnProperty(key)) {
-                        var nickname = clients[key].nickname;
+                for (var key in self.main.clients) {
+                    if (self.main.clients.hasOwnProperty(key)) {
+                        var nickname = self.main.clients[key].nickname;
                         if (nickname !== null && nickname == data.nick) {
                             nicknameInuse = true;
                             break;
@@ -159,10 +98,10 @@ module.exports.client = function (sck) {
                     }
                 }
                 if (nicknameInuse) {
-                    loginResponse = responses.login.alreadyActive;
+                    loginResponse = consts.responses.login.alreadyActive;
                 }
                 else {
-                    loginResponse = responses.login.success;
+                    loginResponse = consts.responses.login.success;
                     loginSuccess = true;
                 }
             }
@@ -177,7 +116,7 @@ module.exports.client = function (sck) {
             }
             self.socket.emit('login_response', { successful: loginSuccess, msg: loginResponse });
             if (self.loggedIn) {
-                broadcastSysMsg('"' + data.nick + '" has joined.'); 
+                self.main.broadcastSysMsg('"' + data.nick + '" has joined.'); 
             }
         }
         else {
@@ -186,13 +125,13 @@ module.exports.client = function (sck) {
     }
 
     // -- CHAT --
-    var lastMessageTime = Date.now() - shSettings.chatSpamTime;
+    var lastMessageTime = Date.now() - consts.sh.chatSpamTime;
     // Chat message recieved
     this.chatRecieved = function(data) {
         if (!self.bot && self.isActive()) {
-            if (lastMessageTime + shSettings.chatSpamTime <= Date.now()) {
+            if (lastMessageTime + consts.sh.chatSpamTime <= Date.now()) {
                 self.log(data.message, 'CHAT');
-                broadcastMessage(self, data.message);
+                self.main.broadcastMessage(self, data.message);
             }
             else {
                 self.log('SUPRESSED: "' + data.message + '"', 'CHAT');
@@ -213,7 +152,7 @@ module.exports.client = function (sck) {
             self.ship.fireReady = true;
         }
         
-        var angDiff = DeltaAng(self.ship.ang, self.ship.tarAng);
+        var angDiff = self.main.DeltaAng(self.ship.ang, self.ship.tarAng);
         if (angDiff > 1) { angDiff = 1; }
         else if (angDiff < -1) { angDiff = -1; }
 
@@ -225,18 +164,18 @@ module.exports.client = function (sck) {
         self.ship.vel.x -= Math.sin(self.ship.ang) * self.ship.thrust * realDeltaTime * 1500;
         self.ship.vel.y -= Math.cos(self.ship.ang) * self.ship.thrust * realDeltaTime * 1500;
 
-        if ((self.ship.pos.x < shSettings.grid.center.x && self.ship.vel.x < 0) || (self.ship.pos.x > -shSettings.grid.center.x && self.ship.vel.x > 0)) { 
+        if ((self.ship.pos.x < consts.sh.grid.center.x && self.ship.vel.x < 0) || (self.ship.pos.x > -consts.sh.grid.center.x && self.ship.vel.x > 0)) { 
             self.ship.vel.x = 0; 
         }
-        if ((self.ship.pos.y < shSettings.grid.center.y && self.ship.vel.y < 0) || (self.ship.pos.y > -shSettings.grid.center.y && self.ship.vel.y > 0)) {
+        if ((self.ship.pos.y < consts.sh.grid.center.y && self.ship.vel.y < 0) || (self.ship.pos.y > -consts.sh.grid.center.y && self.ship.vel.y > 0)) {
             self.ship.vel.y = 0; 
         }
         
         self.ship.pos.x += self.ship.vel.x * realDeltaTime;
         self.ship.pos.y += self.ship.vel.y * realDeltaTime;
         
-        self.ship.pos.x = Clamp(self.ship.pos.x, shSettings.grid.center.x, -shSettings.grid.center.x);
-        self.ship.pos.y = Clamp(self.ship.pos.y, shSettings.grid.center.y, -shSettings.grid.center.y);
+        self.ship.pos.x = self.main.Clamp(self.ship.pos.x, consts.sh.grid.center.x, -consts.sh.grid.center.x);
+        self.ship.pos.y = self.main.Clamp(self.ship.pos.y, consts.sh.grid.center.y, -consts.sh.grid.center.y);
     }
 
     this.collateHostData = function() {
@@ -253,12 +192,12 @@ module.exports.client = function (sck) {
     }
 
     this.fireProjectile = function() {
-        var firedProjectile = new Projectile();
+        var firedProjectile = new self.main.Projectile();
         firedProjectile.obj.pOwn = self.pId;
         firedProjectile.obj.pos.x = self.ship.pos.x;
         firedProjectile.obj.pos.y = self.ship.pos.y;
         firedProjectile.obj.vel = { x: Math.sin(Math.PI + self.ship.ang) * 1024, y: Math.cos(Math.PI + self.ship.ang) * 1024 };
-        gameObjects[firedProjectile.oId] = firedProjectile;
+        self.main.gameObjects[firedProjectile.oId] = firedProjectile;
     }
 
     this.playerUpdate = function(data) {
@@ -267,7 +206,7 @@ module.exports.client = function (sck) {
             self.ship.tarAng = data.tarAng;
             self.ship.thrust = data.thrust;
             if (data.hasOwnProperty('fire') && self.ship.fireReady) {
-                self.ship.fireTimer = svSettings.projectile.fireRate;
+                self.ship.fireTimer = consts.sv.projectile.fireRate;
                 self.ship.fireReady = false;
                 // Fire a projectile
                 self.fireProjectile();
@@ -283,7 +222,7 @@ module.exports.client = function (sck) {
     }
 
     this.destroy = function() {
-        freePlayerIds.unshift(self.pId);
+        self.main.freePlayerIds.unshift(self.pId);
         self.pId = null;
     }
 
@@ -296,7 +235,9 @@ module.exports.client = function (sck) {
     }
 }
 
-module.exports.bot = function () {
+module.exports.bot = function (main) {
+    this.main = main;
+
     module.exports.client.call(this);
 
     var self = this;
@@ -309,19 +250,19 @@ module.exports.bot = function () {
     this.tick = function(realDeltaTime) {
         if (self.alive) {
             if (self.ship.fireReady) {
-                self.ship.fireTimer = svSettings.projectile.fireRate;
+                self.ship.fireTimer = consts.sv.projectile.fireRate;
                 self.ship.fireReady = false;
                 self.fireProjectile();
             }
     
             var dist = null, plyTarget = false, target = null;
-            for (const i in gameObjects) {
-                if (gameObjects.hasOwnProperty(i)) {
-                    if (gameObjects[i].type == OBJECT_TYPE.ASTEROID) {
-                        var tmpDist = Distance(self.ship.pos, gameObjects[i].pos) * (0.8 + Math.random() * 0.4);
+            for (const i in self.main.gameObjects) {
+                if (self.main.gameObjects.hasOwnProperty(i)) {
+                    if (self.main.gameObjects[i].type == consts.OBJECT_TYPE.ASTEROID) {
+                        var tmpDist = self.main.Distance(self.ship.pos, self.main.gameObjects[i].pos) * (0.8 + Math.random() * 0.4);
                         if (dist == null || tmpDist < dist) {
                             dist = tmpDist;
-                            target = { x: gameObjects[i].pos.x - self.ship.pos.x, y: gameObjects[i].pos.y - self.ship.pos.y };;
+                            target = { x: self.main.gameObjects[i].pos.x - self.ship.pos.x, y: self.main.gameObjects[i].pos.y - self.ship.pos.y };;
                         }
                     }
                 }
@@ -338,15 +279,15 @@ module.exports.bot = function () {
            // }
             
             if (target != null) {
-                self.ship.thrust = (Magnitude(target) - influenceZones.deadzoneRad) / influenceZones.influenceRad;
+                self.ship.thrust = (self.main.Magnitude(target) - consts.influenceZones.deadzoneRad) / consts.influenceZones.influenceRad;
                 if (self.ship.thrust > 1) { self.ship.thrust = 1; }
                 else if (self.ship.thrust < 0) { self.ship.thrust = 0; }
                 if (self.ship.thrust <= 0.001) {
                     self.ship.thrust = 0;
                 }
                 self.ship.tarAng = Math.atan2(target.x, target.y) + Math.PI;
-                if (self.ship.tarAng > Math.PI) { self.ship.tarAng -= pi2; }
-                else if (self.ship.tarAng < -Math.PI) { self.ship.tarAng += pi2; }
+                if (self.ship.tarAng > Math.PI) { self.ship.tarAng -= consts.pi2; }
+                else if (self.ship.tarAng < -Math.PI) { self.ship.tarAng += consts.pi2; }
             }
             else {
                 self.ship.thruster.thrust = 0;

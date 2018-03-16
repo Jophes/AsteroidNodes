@@ -2,7 +2,7 @@
 // -- Variable declarations --
 //  -------------------------
 
-var messageBox = {}, loginBox = {}, canvas, ctx; // HTML DOM elements
+var messageBox = {}, loginBox = {}, deathBox = {}, canvas, ctx; // HTML DOM elements
 var scrolled = true;  // scrolled boolean, is the user is at the bottom of the chat
 var socket = io(); // Socket IO
 
@@ -11,7 +11,7 @@ var pi2 = Math.PI * 2;
 var messageBuffer = [], clearBufferTimeoutId;
 var lastUpdate;
 
-var alive = false;
+var alive = false, loggedIn = false;
 var camPos = {x: 0, y: 0};
 
 // Defaults, may be updated by the server
@@ -371,6 +371,7 @@ function PlayerShip() {
     this.pos = {x: 0, y: 0};
     this.vel = {x: 0, y: 0};
     this.ang = 0; 
+    this.health = 0;
     this.tarAng = 0;
 
     this.lastUpdate = Date.now();
@@ -414,7 +415,7 @@ function PlayerShip() {
     };
 
     this.draw = function() {
-        ctx.strokeStyle = colors.rings.inner;
+        /*ctx.strokeStyle = colors.rings.inner;
         ctx.beginPath();
         ctx.arc(camPos.x + svSettings.grid.offset.x + self.pos.x, camPos.y + svSettings.grid.offset.y + self.pos.y, influenceZones.deadzoneRad, Math.PI * -0.5 - self.tarAng, Math.PI * 1.5 - self.tarAng);
         ctx.lineTo(camPos.x + svSettings.grid.offset.x + self.pos.x - Math.sin(self.tarAng) * influenceZones.totalRad, camPos.y + svSettings.grid.offset.y + self.pos.y - Math.cos(self.tarAng) * influenceZones.totalRad);
@@ -423,9 +424,15 @@ function PlayerShip() {
         ctx.strokeStyle = colors.rings.outer;
         ctx.beginPath();
         ctx.arc(camPos.x + svSettings.grid.offset.x + self.pos.x, camPos.y + svSettings.grid.offset.y + self.pos.y, influenceZones.totalRad, 0, pi2);
-        ctx.stroke();
+        ctx.stroke();*/
 
         ctx.strokeStyle = colors.player.thruster;
+
+        for (let i = 1; i < self.health; i++) {
+            ctx.beginPath();
+            ctx.arc(camPos.x + svSettings.grid.offset.x + self.pos.x, camPos.y + svSettings.grid.offset.y + self.pos.y, influenceZones.deadzoneRad + 8 * i, 0, pi2);
+            ctx.stroke();
+        }
         
         if (self.thruster.thrust > 0) {
             self.thruster.visObj.ang = self.ang;
@@ -525,6 +532,17 @@ function PlayerInput() {
     }
 
     this.draw = function() {
+        ctx.strokeStyle = colors.rings.inner;
+        ctx.beginPath();
+        ctx.arc(camPos.x + svSettings.grid.offset.x + self.ship.pos.x, camPos.y + svSettings.grid.offset.y + self.ship.pos.y, influenceZones.deadzoneRad, Math.PI * -0.5 - self.ship.tarAng, Math.PI * 1.5 - self.ship.tarAng);
+        ctx.lineTo(camPos.x + svSettings.grid.offset.x + self.ship.pos.x - Math.sin(self.ship.tarAng) * influenceZones.totalRad, camPos.y + svSettings.grid.offset.y + self.ship.pos.y - Math.cos(self.ship.tarAng) * influenceZones.totalRad);
+        ctx.stroke();
+
+        ctx.strokeStyle = colors.rings.outer;
+        ctx.beginPath();
+        ctx.arc(camPos.x + svSettings.grid.offset.x + self.ship.pos.x, camPos.y + svSettings.grid.offset.y + self.ship.pos.y, influenceZones.totalRad, 0, pi2);
+        ctx.stroke();
+
         this.ship.draw();
     };
 }
@@ -639,6 +657,26 @@ function LoginAttempt(event) {
     }
 }
 
+function RespawnAttempt() {
+    if (!alive) {
+        socket.emit('respawn_attempt');
+        deathBox.container.className = 'hidden';
+        alive = true;
+        AddMessage('You respawned.');
+    }
+}
+
+function QuitAttempt() {
+    if (!alive) {
+        socket.emit('quit_attempt');
+        deathBox.container.className = 'hidden';
+        loginBox.container.className = '';
+        loggedIn = false;
+        AddMessage('You disconnected.');
+        GameDestroy();
+    }
+}
+
 function ClearMessageBuffer() {
     if (messageBox.list) {
         for (var key in messageBuffer) {
@@ -667,6 +705,7 @@ function GameInit() {
     window.addEventListener('mouseup', user.handleMouseUp);
 
     alive = true;
+    Clear();
     requestAnimationFrame(Draw);
     updateId = setInterval(Update, svSettings.updateInterval);
 }
@@ -689,7 +728,8 @@ function GameDestroy() {
 function LoginResponse(data) {
     AddMessage(data.msg);
     if (data.successful) {
-        loginBox.container.style = 'display: none;';
+        loggedIn = true;
+        loginBox.container.className = 'hidden';
         GameInit();
     }   
 }
@@ -702,12 +742,17 @@ function RecieveSettings(data) {
 }
 socket.on('settings_init', RecieveSettings);
 
+var killerId = null;
+
 function PlayerDied(data) {
-    console.log(data);
     alive = false;
-    GameDestroy();
-    loginBox.container.style = '';
+    //GameDestroy();
+    //loginBox.container.style = '';
     AddMessage('You were killed by: ' + data.killer);
+    deathBox.killerText.innerHTML = 'You were killed by: ' + data.killer;
+    killerId = data.kId;
+    deathBox.container.className = '';
+
 }
 socket.on('update_death', PlayerDied);
 
@@ -795,7 +840,9 @@ var gameObjects = {};
 
 function Update() {
     //socket.emit('player_update', { tarAng: user.ship.tarAng, thrust: user.ship.thruster.thrust });
-    socket.emit('player_update', user.collateSendData());
+    if (alive) {
+        socket.emit('player_update', user.collateSendData());
+    }
 }
 
 //  --------
@@ -813,7 +860,7 @@ function Draw(now) {
     lastUpdate = now;
     Clear();
     
-    if (alive) {
+    if (loggedIn) {
         // -- Tick -- 
         // Perform update on gameObjects
         for (var i in gameObjects) {
@@ -821,15 +868,24 @@ function Draw(now) {
                 gameObjects[i].tick(deltaTime);
             }
         }
-    
+
         // Perform update on player input
         for (var i in plys) {
             if (plys.hasOwnProperty(i)) {
                 plys[i].tick(Date.now());
             }
         }
-        user.tick(Date.now());
-    
+        
+        if (alive) {
+            user.tick(Date.now());
+        }
+        else if (killerId != null) {
+            if (plys.hasOwnProperty(killerId)) {
+                camPos.x = Lerp(camPos.x, Clamp(-plys[killerId].pos.x, Math.min(svSettings.grid.center.x + canvas.width*0.5, 0), Math.max(-svSettings.grid.center.x - canvas.width*0.5, 0)), 0.05);
+                camPos.y = Lerp(camPos.y, Clamp(-plys[killerId].pos.y, Math.min(svSettings.grid.center.y + canvas.height*0.5, 0), Math.max(-svSettings.grid.center.y - canvas.height*0.5, 0)), 0.05);
+            }
+        }
+
         // -- Draw --
         // Draw the grid
         ctx.strokeStyle = colors.grid;
@@ -839,34 +895,36 @@ function Draw(now) {
             ctx.moveTo(cellPos.x, cellPos.y);
             ctx.lineTo(cellPos.x, cellPos.y + svSettings.grid.cell.height * svSettings.grid.count.height);
         }
-    
+
         for (var i = 0; i <= svSettings.grid.count.height; i++) {
             var cellPos = { x: camPos.x + svSettings.grid.pos.x, y: camPos.y + svSettings.grid.pos.y + i * svSettings.grid.cell.width };
             ctx.moveTo(cellPos.x, cellPos.y);
             ctx.lineTo(cellPos.x + svSettings.grid.cell.width * svSettings.grid.count.width, cellPos.y);
         }
         ctx.stroke();
-    
+
         for (const i in gameObjects) {
             if (gameObjects.hasOwnProperty(i)) {
                 gameObjects[i].draw();
             }
         }
-    
+
         // Draw the current user on top of everything so they can always see themselves
         for (const i in plys) {
             if (plys.hasOwnProperty(i)) {
                 plys[i].draw();
             }
         }
-        user.draw();
-    
+        if (alive) {
+            user.draw();
+        }
+
         // Clear the sides of the grid so the player can't see the objects outside the grid being removed
         ctx.clearRect(0, 0, svSettings.grid.cutoffs.sizes.width, canvas.height);
         ctx.clearRect(svSettings.grid.cutoffs.offsets.x, 0, svSettings.grid.cutoffs.sizes.width, canvas.height);
         ctx.clearRect(0, 0, canvas.width, svSettings.grid.cutoffs.sizes.height);
         ctx.clearRect(0, svSettings.grid.cutoffs.offsets.y, canvas.width, svSettings.grid.cutoffs.sizes.height);
-    
+
         requestAnimationFrame(Draw);
     }
 }
@@ -901,7 +959,12 @@ function Init() {
     loginBox.container = document.getElementById('loginBox');
     loginBox.form = loginBox.container.getElementsByTagName('form')[0];
     loginBox.nameInput = loginBox.container.getElementsByTagName('input')[0];
-    loginBox.startBtn = loginBox.container.getElementsByTagName('button')[0];
+
+    // Get all death box elements needed
+    deathBox.container = document.getElementById('deathBox');
+    deathBox.respawnBtn = deathBox.container.getElementsByTagName('button')[0];
+    deathBox.quitBtn = deathBox.container.getElementsByTagName('button')[1];
+    deathBox.killerText = deathBox.container.getElementsByTagName('p')[0];
 
     // Automatically focus the login nickname input box
     loginBox.nameInput.focus();
@@ -909,6 +972,8 @@ function Init() {
     // Attach event listener to the submit events of both login and chat forms
     loginBox.form.addEventListener('submit', LoginAttempt);
     messageCreate.addEventListener('submit', SubmitMessage);
+    deathBox.respawnBtn.addEventListener('click', RespawnAttempt);
+    deathBox.quitBtn.addEventListener('click', QuitAttempt);
 
     AddMessage('Welcome to Asteroids Online.');
 }
