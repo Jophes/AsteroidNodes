@@ -62,6 +62,7 @@ var influenceZones = {
 
 // Draw enum variables
 var DRAW_MOVE = 0, DRAW_LINE = 1;
+var PAGE_TYPE = { GAME: 0, STATS: 1 };
 var OBJECT_TYPE = { OBJECT: 0, PROJECTILE: 1, ASTEROID: 2 };
 
 // Polygon data for visual objects

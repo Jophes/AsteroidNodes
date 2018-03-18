@@ -45,6 +45,7 @@ const deltaTime = shSettings.tickInterval / 1000;
 
 var lastPlayerId = 1, freePlayerIds = [];
 var lastObjectId = 1, freeObjectIds = [];
+var lastStatUserId = 1, freeStatUserIds = [];
 
 function GeneratePlayerId() {
     if (freePlayerIds.length > 0) {
@@ -64,6 +65,15 @@ function GenerateObjectId() {
     }
 }
 
+function GenerateStatId() {
+    if (freeStatUserIds.length > 0) {
+        return freeStatUserIds.pop();
+    }
+    else {
+        return lastStatUserId++;
+    }
+}
+
 const svSettings = { 
     login: {
         minNickLength: 2, // Minimum number of characters in a nickname
@@ -77,6 +87,7 @@ const svSettings = {
 };
 // ---- CONFIG END -----
 
+var PAGE_TYPE = { GAME: 0, STATS: 1 };
 var OBJECT_TYPE = { OBJECT: 0, PROJECTILE: 1, ASTEROID: 2 };
 
 const responses = {
@@ -176,8 +187,8 @@ function LogRequests(req, res, next) {
     next();
 }
 
-const servePages = ['/index.html','/resources/cheese.ico','/resources/main.js','/resources/styles.css'];
-var renameTable = {'/': '/index.html'};
+const servePages = ['/index.html','/statistics.html','/resources/cheese.ico','/resources/main.js','/resources/styles.css','/resources/statistics.js'];
+var renameTable = {'/': '/index.html', '/statistics': '/statistics.html'};
 for(var i in servePages) {
     renameTable[servePages[i]] = servePages[i];
 }
@@ -204,7 +215,7 @@ function HandleHomeGetRequest(req, res, next) {
             }
         });
     }
-    else if (req.url == '/statistics') {
+    else if (req.url == '/statistics.json') {
         AppLog('Serving "' + req.url + '" to', req);
         res.setHeader('Content-Type', 'application/json');
         res.send(JSON.stringify(stats.sessions));
@@ -482,7 +493,7 @@ for (var i = 0; i < 1; i++) {
     asteroid.obj.pos.y = 128;
     gameObjects[asteroid.oId] = asteroid;
 }*/
-for (let i = 0; i < 32; i++) {
+for (let i = 0; i < 0; i++) {
     var newBot = new Bot();
     clients[newBot.pId] = newBot;
 }
@@ -960,12 +971,39 @@ function Bot() {
     delete self.playerUpdate;
 }
 
+// STATS STUFF
+var statUsers = [];
+
+function StatsUser(sck) {
+    var self = this;
+    self.socket = sck;
+    self.sId = GenerateStatId();
+    this.update = function(data) {
+        self.socket.emit('stat_update', data);
+    }
+    this.destroy = function() {
+        freePlayerIds.unshift(self.pId);
+        self.pId = null;
+    }
+}
+
 // Client connection handler
 function ClientConnected(socket) {
     // Create a new client object
-    var cl = new ClientVars(socket)
-    cl.log('Client has connected');
-    clients[cl.pId] = cl;
+    console.log(socket);
+    var self = this;
+    this.pageInit = function(data) {
+        if (data.page == PAGE_TYPE.GAME) {
+            var cl = new ClientVars(socket)
+            cl.log('Client has connected');
+            clients[cl.pId] = cl;
+        }
+        else if (data.page == PAGE_TYPE.STATS) {
+
+        }
+        socket.removeListener('page_initialise', self.pageInit);
+    }
+    socket.on('page_initialise', self.pageInit);
 }
 
 io.on('connection', ClientConnected)
