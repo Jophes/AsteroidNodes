@@ -280,6 +280,41 @@ function Stats() {
         self.sessions[uId].end = Date.now();
         //console.log('uId: "' + uId + '" session ended at ' + self.sessions[uId].end);
     }
+
+    this.exportData = function() {
+        var activeSessions = [], shotsHit = 0, totalSessions = 0;
+        for (const i in self.sessions) {
+            if (self.sessions.hasOwnProperty(i)) {
+                totalSessions++;
+                if (self.sessions[i].end == null) {
+                    activeSessions.push(self.sessions[i]);
+                }
+                for (const j in self.sessions[i].instances) {
+                    if (self.sessions[i].instances.hasOwnProperty(j)) {
+                        shotsHit++;
+                    }
+                }
+            }
+        }
+        var activePlayers = [], activeBots = [];
+        for (const i in activeSessions) {
+            if (activeSessions.hasOwnProperty(i)) {
+                if (activeSessions[i].bot) {
+                    activeBots.push(activeSessions[i]);
+                }
+                else {
+                    activePlayers.push(activeSessions[i]);
+                }
+            }
+        }
+        return {
+            totalSessions: totalSessions,
+            activeSessions: activeSessions.length,
+            activePlayers: activePlayers.length,
+            activeBots: activeBots.length,
+            totalShotsHit: shotsHit,
+        };
+    }
 }
 
 var stats = new Stats();
@@ -493,7 +528,7 @@ for (var i = 0; i < 1; i++) {
     asteroid.obj.pos.y = 128;
     gameObjects[asteroid.oId] = asteroid;
 }*/
-for (let i = 0; i < 0; i++) {
+for (let i = 0; i < 32; i++) {
     var newBot = new Bot();
     clients[newBot.pId] = newBot;
 }
@@ -972,25 +1007,40 @@ function Bot() {
 }
 
 // STATS STUFF
-var statUsers = [];
+var statUsers = {};
 
 function StatsUser(sck) {
     var self = this;
     self.socket = sck;
     self.sId = GenerateStatId();
     this.update = function(data) {
-        self.socket.emit('stat_update', data);
+        self.socket.emit('stats_update', data);
     }
     this.destroy = function() {
-        freePlayerIds.unshift(self.pId);
-        self.pId = null;
+        freeStatUserIds.unshift(self.sId);
+        self.sId = null;
+    }
+    // Disconnect method
+    this.disconnect = function() {
+        delete statUsers[self.sId];
+        self.destroy();
+    }
+    self.socket.on('disconnect', self.disconnect);
+}
+
+function UpdateStatUsers() {
+    var genData = stats.exportData();
+    for (const i in statUsers) {
+        if (statUsers.hasOwnProperty(i)) {
+            statUsers[i].update(genData);
+        }
     }
 }
+setInterval(UpdateStatUsers, 1000);
 
 // Client connection handler
 function ClientConnected(socket) {
     // Create a new client object
-    console.log(socket);
     var self = this;
     this.pageInit = function(data) {
         if (data.page == PAGE_TYPE.GAME) {
@@ -999,7 +1049,9 @@ function ClientConnected(socket) {
             clients[cl.pId] = cl;
         }
         else if (data.page == PAGE_TYPE.STATS) {
-
+            var su = new StatsUser(socket);
+            console.log('Stats connected');
+            statUsers[su.sId] = su;
         }
         socket.removeListener('page_initialise', self.pageInit);
     }

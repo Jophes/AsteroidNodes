@@ -48,7 +48,7 @@ canvas { position: absolute; }
 #sessionSummary { margin: 16px; border: 1px solid #e2e2e2; border-radius: 4px; }
 #sessionSummary > h1 { padding: 2px 8px; width: 100%; font-weight: 400; border-bottom: 1px solid #e2e2e2; }
 #sessionSummary > div {  }
-#sessionSummary > div > h3, #sessionSummary > div > p { float: left; }
+#sessionSummary > div > h3, #sessionSummary > div > p {  }
 #sessionSummary > div:last-child { clear: both; }
 #sessionSummary > div > h3 {  }
 #sessionSummary > div > p {  }

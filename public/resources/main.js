@@ -977,5 +977,7 @@ function Init() {
     deathBox.quitBtn.addEventListener('click', QuitAttempt);
 
     AddMessage('Welcome to Asteroids Online.');
+
+    socket.emit('page_initialise', { page: PAGE_TYPE.GAME });
 }
 window.addEventListener('load', Init);
