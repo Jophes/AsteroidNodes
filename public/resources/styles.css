@@ -1,7 +1,7 @@
 @import url('https://fonts.googleapis.com/css?family=Open+Sans:300,400');
 
 html, body { min-height: 100%; }
-body { height: 100%; }
+body { height: 100%; margin: 0; }
 
 div, html, body, ul, li, h1, h2, h3, h4, p, a, button, input { padding: 0; margin: 0; font-family: 'Open Sans', sans-serif; font-weight: 300; color: #fff; }
 button, input { display: block; border: none; background: none; color: #fff; margin: 0; }
@@ -37,7 +37,7 @@ canvas { position: absolute; }
 #messageCreate { height: 40px; border-top: 1px solid #e2e2e2; }
 #messageCreate > form > input { float: left; width: 403px; height: 32px; border-right: 1px solid #e2e2e2; }
 #messageCreate > form > button { float: left; width: 80px; height: 40px;  }
-   
+
 #deathBox { display: table-row; position: fixed; top: 50%; left: 50%; width: 250px; margin: -67px 0 0 -126px; border: 1px solid #e2e2e2; background-color: rgba(25,25,25,0.85); border-radius: 4px; }
 #deathBox > h1 { display: table-cell; width: 250px; padding: 8px 0; text-align: center; user-select: none; cursor: default; font-size: 28px; border-bottom: 1px solid #e2e2e2; }
 #deathBox > p { display: block; margin: 0; padding: 8px 0; width: 250px; text-align: center; }
@@ -46,9 +46,24 @@ canvas { position: absolute; }
 .hidden { display: none !important; }
 
 #sessionSummary { margin: 16px; border: 1px solid #e2e2e2; border-radius: 4px; }
-#sessionSummary > h1 { padding: 2px 8px; width: 100%; font-weight: 400; border-bottom: 1px solid #e2e2e2; }
-#sessionSummary > div {  }
-#sessionSummary > div > h3, #sessionSummary > div > p {  }
-#sessionSummary > div:last-child { clear: both; }
-#sessionSummary > div > h3 {  }
-#sessionSummary > div > p {  }
+#sessionSummary > h1 { padding: 2px 8px; width: calc(100% - 16px); font-weight: 400; border-bottom: 1px solid #e2e2e2; }
+#sessionSummary > .items { padding: 8px; overflow: auto; }
+#sessionSummary > .items > div { width: 200px; float: left; overflow: auto; }
+#sessionSummary > .items > div > h3 { width: 150px; float: left; text-align: right; font-size: 18px; }
+#sessionSummary > .items > div > p { width: 44px; margin-left: 6px; float: left; font-size: 18px; }
+
+#sessions > #session { margin: 16px; border: 1px solid #e2e2e2; border-radius: 4px; }
+#sessions > #session { margin: 16px; border: 1px solid #e2e2e2; border-radius: 4px; }
+#session > header { overflow: auto; }
+#session > header > h1, #session > header > p { float: left; font-size: 32px; margin: 2px 8px; }
+#session > div > div { margin: 8px; border: 1px solid #e2e2e2; border-radius: 4px; }
+#session > div > div > header { overflow: auto; margin: 0 8px; }
+#session > div > div > header > h1 { margin-right: 8px; }
+#session > div > div > header > h1, #session > div > div > header > p { float: left; font-size: 24px; }
+
+#session > div > div > div { overflow: auto; border-top: 1px solid #e2e2e2; }
+#session > div > div > div > div { width: 200px; overflow: auto; float: left; }
+#session > div > div > div > div > h3 { float: left; width: 100px; font-size: 18px; text-align: right; }
+#session > div > div > div > div > p { float: left; width: 94px; margin-left: 6px; font-size: 18px; }
+
+.clear { clear:both; }

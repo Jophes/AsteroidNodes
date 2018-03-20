@@ -307,12 +307,24 @@ function Stats() {
                 }
             }
         }
+        var sessionData = {};
+        for (const i in self.sessions) {
+            if (self.sessions.hasOwnProperty(i)) {
+                sessionData[i] = { id: i, name: self.sessions[i].name, instances: [] };
+                for (const j in self.sessions[i].instances) {
+                    if (self.sessions[i].instances.hasOwnProperty(j)) {
+                        sessionData[i].instances[j] = { dealt: 1, taken: 2, lifetime: ((self.sessions[i].instances[j].end != null ? self.sessions[i].instances[j].end : Date.now()) - self.sessions[i].instances[j].start)/1000 };
+                    }
+                }
+            }
+        }
         return {
             totalSessions: totalSessions,
             activeSessions: activeSessions.length,
             activePlayers: activePlayers.length,
             activeBots: activeBots.length,
             totalShotsHit: shotsHit,
+            sessions: sessionData,
         };
     }
 }
