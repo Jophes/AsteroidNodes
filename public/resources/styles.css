@@ -61,7 +61,7 @@ canvas { position: absolute; }
 #session > div > div > header > h1 { margin-right: 8px; }
 #session > div > div > header > h1, #session > div > div > header > p { float: left; font-size: 24px; }
 
-#session > div > div > div { overflow: auto; border-top: 1px solid #e2e2e2; }
+#session > div > div > div { overflow: auto; }
 #session > div > div > div > div { width: 200px; overflow: auto; float: left; }
 #session > div > div > div > div > h3 { float: left; width: 100px; font-size: 18px; text-align: right; }
 #session > div > div > div > div > p { float: left; width: 94px; margin-left: 6px; font-size: 18px; }

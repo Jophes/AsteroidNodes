@@ -230,7 +230,7 @@ function Asteroid() {
     };
 
     this.draw = function() {
-        ctx.strokeStyle = colors.rings.asteroid;
+        /*ctx.strokeStyle = colors.rings.asteroid;
         if (self.outerRad) {
             ctx.beginPath();
             ctx.arc(camPos.x + svSettings.grid.offset.x + self.pos.x, camPos.y + svSettings.grid.offset.y + self.pos.y, self.outerRad, 0, pi2);
@@ -246,7 +246,7 @@ function Asteroid() {
             ctx.beginPath();
             ctx.arc(camPos.x + svSettings.grid.offset.x + self.pos.x, camPos.y + svSettings.grid.offset.y + self.pos.y, self.collisionRad, 0, pi2);
             ctx.stroke();
-        }
+        }*/
 
         if (self.polyData.length > 0) {
             ctx.strokeStyle = colors.asteroid;
@@ -399,8 +399,26 @@ function PlayerShip() {
         self.vel.y *= 0.875;
 
         self.ang += angDiff * 7.5 * self.thruster.thrust  * deltaTime;
+
         self.vel.x -= Math.sin(self.ang) * self.thruster.thrust * deltaTime * 1500;
         self.vel.y -= Math.cos(self.ang) * self.thruster.thrust * deltaTime * 1500;
+
+        
+        var force = { x: 0, y: 0 };
+		for (const i in plys) {
+            if (plys.hasOwnProperty(i) && i != self.pId) {
+                const client = plys[i];
+                var delta = { x: (self.pos.x + self.vel.x * now) - client.pos.x, y: (self.pos.y + self.vel.y * now) - client.pos.y };
+                var deltaLen = Magnitude(delta);
+                var minDist = influenceZones.deadzoneRad * 2 + 8 * (self.health - 1) + 8 * (client.health - 1);
+                if (deltaLen < minDist) {
+                    force.x += ((delta.x / deltaLen) * (minDist - deltaLen)) / now;
+                    force.y += ((delta.y / deltaLen) * (minDist - deltaLen)) / now;
+                }
+            }
+        }
+        self.vel.x += force.x;
+        self.vel.y += force.y;
 
         if ((self.pos.x < svSettings.grid.center.x && self.vel.x < 0) || (self.pos.x > -svSettings.grid.center.x && self.vel.x > 0)) { self.vel.x = 0; }
         if ((self.pos.y < svSettings.grid.center.y && self.vel.y < 0) || (self.pos.y > -svSettings.grid.center.y && self.vel.y > 0)) { self.vel.y = 0; }
@@ -410,6 +428,7 @@ function PlayerShip() {
 
         self.pos.x = Clamp(self.pos.x, svSettings.grid.center.x, -svSettings.grid.center.x);
         self.pos.y = Clamp(self.pos.y, svSettings.grid.center.y, -svSettings.grid.center.y);
+        //self.pos = GridClamp(self.pos);
 
         //console.log('vel x: ' + self.vel.x + ' y: ' + self.vel.y + ' pos x: ' + self.pos.x + ' y: ' + self.pos.y + ' thrust: ' + self.thruster.thrust + ' dt: ' + deltaTime);
         self.thruster.tick(deltaTime);
@@ -522,6 +541,8 @@ function PlayerInput() {
         self.ship.tick(now);
         camPos.x = Lerp(camPos.x, Clamp(-self.ship.pos.x, Math.min(svSettings.grid.center.x + canvas.width*0.5, 0), Math.max(-svSettings.grid.center.x - canvas.width*0.5, 0)), 0.05);
         camPos.y = Lerp(camPos.y, Clamp(-self.ship.pos.y, Math.min(svSettings.grid.center.y + canvas.height*0.5, 0), Math.max(-svSettings.grid.center.y - canvas.height*0.5, 0)), 0.05);
+        //camPos.x = Lerp(camPos.x, -self.ship.pos.x, 0.05);
+        //camPos.y = Lerp(camPos.y, -self.ship.pos.y, 0.05);
     };
 
     this.collateSendData = function() {
@@ -884,6 +905,8 @@ function Draw(now) {
             if (plys.hasOwnProperty(killerId)) {
                 camPos.x = Lerp(camPos.x, Clamp(-plys[killerId].pos.x, Math.min(svSettings.grid.center.x + canvas.width*0.5, 0), Math.max(-svSettings.grid.center.x - canvas.width*0.5, 0)), 0.05);
                 camPos.y = Lerp(camPos.y, Clamp(-plys[killerId].pos.y, Math.min(svSettings.grid.center.y + canvas.height*0.5, 0), Math.max(-svSettings.grid.center.y - canvas.height*0.5, 0)), 0.05);
+                //camPos.x = Lerp(camPos.x, -plys[killerId].pos.x, 0.05);
+                //camPos.y = Lerp(camPos.y, -plys[killerId].pos.y, 0.05);
             }
         }
 

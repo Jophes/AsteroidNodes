@@ -282,7 +282,7 @@ function Stats() {
     }
 
     this.exportData = function() {
-        var activeSessions = [], shotsHit = 0, totalSessions = 0;
+        var activeSessions = [], totalSessions = 0, shotsFired = [];
         for (const i in self.sessions) {
             if (self.sessions.hasOwnProperty(i)) {
                 totalSessions++;
@@ -291,7 +291,12 @@ function Stats() {
                 }
                 for (const j in self.sessions[i].instances) {
                     if (self.sessions[i].instances.hasOwnProperty(j)) {
-                        shotsHit++;
+                        for (const k in self.sessions[i].instances[j].hits) {
+                            if (self.sessions[i].instances[j].hits.hasOwnProperty(k)) {
+                                shotsFired.push(self.sessions[i].instances[j].hits[k]);
+                                shotsFired[shotsFired.length - 1].originId = i;
+                            }
+                        }
                     }
                 }
             }
@@ -313,7 +318,21 @@ function Stats() {
                 sessionData[i] = { id: i, name: self.sessions[i].name, instances: [] };
                 for (const j in self.sessions[i].instances) {
                     if (self.sessions[i].instances.hasOwnProperty(j)) {
-                        sessionData[i].instances[j] = { dealt: 1, taken: 2, lifetime: ((self.sessions[i].instances[j].end != null ? self.sessions[i].instances[j].end : Date.now()) - self.sessions[i].instances[j].start)/1000 };
+                        var shotsDealt = [], shotsTaken = [];
+                        for (const k in shotsFired) {
+                            if (shotsFired.hasOwnProperty(k)) {
+                                if (shotsFired[k].originId == i) {
+                                    shotsDealt.push(shotsFired[k]);
+                                }
+                                if (shotsFired[k].hitUId == i) {
+                                    shotsTaken.push(shotsFired[k]);
+                                }
+                            }
+                        }
+                        sessionData[i].instances[j] = { 
+                            dealt: shotsDealt.length,
+                            taken: shotsTaken.length,
+                            lifetime: ((self.sessions[i].instances[j].end != null ? self.sessions[i].instances[j].end : Date.now()) - self.sessions[i].instances[j].start)/1000 };
                     }
                 }
             }
@@ -323,7 +342,7 @@ function Stats() {
             activeSessions: activeSessions.length,
             activePlayers: activePlayers.length,
             activeBots: activeBots.length,
-            totalShotsHit: shotsHit,
+            totalShotsHit: shotsFired.length,
             sessions: sessionData,
         };
     }
@@ -855,6 +874,22 @@ function ClientVars(sck) {
         self.ship.vel.x -= Math.sin(self.ship.ang) * self.ship.thrust * realDeltaTime * 1500;
         self.ship.vel.y -= Math.cos(self.ship.ang) * self.ship.thrust * realDeltaTime * 1500;
 
+        var force = { x: 0, y: 0 };
+		for (const i in clients) {
+            if (clients.hasOwnProperty(i) && i != self.pId) {
+                const client = clients[i];
+                var delta = { x: (self.ship.pos.x + self.ship.vel.x * realDeltaTime) - client.ship.pos.x, y: (self.ship.pos.y + self.ship.vel.y * realDeltaTime) - client.ship.pos.y };
+                var deltaLen = Magnitude(delta);
+                var minDist = influenceZones.deadzoneRad * 2 + 8 * (self.health - 1) + 8 * (client.health - 1);
+                if (deltaLen < minDist) {
+                    force.x += ((delta.x / deltaLen) * (minDist - deltaLen)) / realDeltaTime;
+                    force.y += ((delta.y / deltaLen) * (minDist - deltaLen)) / realDeltaTime;
+                }
+            }
+        }
+        self.ship.vel.x += force.x;
+        self.ship.vel.y += force.y;
+
         if ((self.ship.pos.x < shSettings.grid.center.x && self.ship.vel.x < 0) || (self.ship.pos.x > -shSettings.grid.center.x && self.ship.vel.x > 0)) { 
             self.ship.vel.x = 0; 
         }
@@ -1048,7 +1083,7 @@ function UpdateStatUsers() {
         }
     }
 }
-setInterval(UpdateStatUsers, 1000);
+//setInterval(UpdateStatUsers, 1000);
 
 // Client connection handler
 function ClientConnected(socket) {
@@ -1064,6 +1099,7 @@ function ClientConnected(socket) {
             var su = new StatsUser(socket);
             console.log('Stats connected');
             statUsers[su.sId] = su;
+            UpdateStatUsers();
         }
         socket.removeListener('page_initialise', self.pageInit);
     }
