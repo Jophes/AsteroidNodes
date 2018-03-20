@@ -16,75 +16,52 @@
             <div class="items">
                 <div id="totalSessions">
                     <h3>Total sessions: </h3>
-                    <p>{0}</p>
+                    <p>0</p>
                 </div>
                 <div id="activeSessions">
                     <h3>Active sessions: </h3>
-                    <p>{1}</p>
+                    <p>0</p>
                 </div>
                 <div id="activePlayers">
                     <h3>Active Players: </h3>
-                    <p>{2}</p>
+                    <p>0</p>
                 </div>
                 <div id="activeBots">
                     <h3>Active Bots: </h3>
-                    <p>{3}</p>
+                    <p>0</p>
                 </div>
                 <div id="totalShotsHit">
                     <h3>Total shots hit: </h3>
-                    <p>{4}</p>
+                    <p>0</p>
                 </div>
+            </div>
+            <div id="controls">
+                <div>
+                    <span>Nets: </span>
+                    <input id="nets" type="number" value=8>
+                </div>
+                <div>
+                    <span>Bots: </span>
+                    <input id="bots" type="number" value=4>
+                </div>
+                <div>
+                    <span>Health: </span>
+                    <input id="health" type="number" value=4>
+                </div>
+                <div>
+                    <span>Asteroids: </span>
+                    <input id="asteroids" type="number" value=16>
+                </div>
+                <div>
+                    <span>Fire rate: </span>
+                    <input id="fireRate" type="number" value=0.25>
+                </div>
+                <button id="apply" class="independent">Apply Settings</button>
+                <button id="reset" class="independent">Reset</button>
+                <button id="getSessions" class="independent">Get Sessions</button>
             </div>
         </div>
         <div id="sessions">
-            <div id="session">
-                <header>
-                    <h1>Session</h1>
-                    <p>{Id}:{Name}</p>
-                </header>
-                <div>
-                    <div>
-                        <header>
-                            <h1>Instance </h1>
-                            <p>{Id}</p>
-                        </header>
-                        <div>
-                            <div>
-                                <h3>Hits dealt:</h3>
-                                <p>{Dealt}</p>
-                            </div>
-                            <div>
-                                <h3>Hits taken:</h3>
-                                <p>{Taken}</p>
-                            </div>
-                            <div>
-                                <h3>Lifetime:</h3>
-                                <p>{Lifetime}</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div>
-                        <header>
-                            <h1>Instance </h1>
-                            <p>{Id}</p>
-                        </header>
-                        <div>
-                            <div>
-                                <h3>Hits dealt:</h3>
-                                <p>{Dealt}</p>
-                            </div>
-                            <div>
-                                <h3>Hits taken:</h3>
-                                <p>{Taken}</p>
-                            </div>
-                            <div>
-                                <h3>Lifetime:</h3>
-                                <p>{Lifetime}</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </div>
     </body>
 </html>

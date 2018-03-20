@@ -1,7 +1,7 @@
 
 var socket = io(); // Socket IO
 var PAGE_TYPE = { GAME: 0, STATS: 1 };
-var sessionSummary, sessionsParent;
+var sessionSummary, sessionsParent, controlsParent;
 
 function CreateInstanceObj(instance) {
     var instanceObj = document.createElement('div');
@@ -68,31 +68,77 @@ function CreateSessionObj(session) {
 
 function Update(data) {
     console.log(data);
-    for (const i in data) {
-        if (data.hasOwnProperty(i)) {
-            var obj = document.getElementById(i);
-            if (obj) {
-                var p = obj.getElementsByTagName('p')[0];
-                if (p) {
-                    p.innerHTML = data[i];
+    if (data.hasOwnProperty('summary')) {
+        for (const i in data.summary) {
+            if (data.summary.hasOwnProperty(i)) {
+                var obj = document.getElementById(i);
+                if (obj) {
+                    var p = obj.getElementsByTagName('p')[0];
+                    if (p) {
+                        p.innerHTML = data.summary[i];
+                    }
                 }
             }
         }
     }
-    sessionsParent.innerHTML = '';
-    for (const i in data.sessions) {
-        if (data.sessions.hasOwnProperty(i)) {
-            sessionsParent.appendChild(CreateSessionObj(data.sessions[i]));
+    if (data.hasOwnProperty('settings')) {
+        for (const i in data.settings) {
+            if (data.settings.hasOwnProperty(i)) {
+                var obj = document.getElementById(i);
+                if (obj) { 
+                    obj.value = data.settings[i];
+                }
+            }
         }
     }
-    CreateSessionObj
+    if (data.hasOwnProperty('sessions')) {
+        sessionsParent.innerHTML = '';
+        for (const i in data.sessions) {
+            if (data.sessions.hasOwnProperty(i)) {
+                sessionsParent.appendChild(CreateSessionObj(data.sessions[i]));
+            }
+        }
+    }
+}
+
+function applySettings() {
+    var settingsData = {}, settings = ['nets', 'bots', 'health', 'asteroids', 'fireRate'];
+    for (const i in settings) {
+        if (settings.hasOwnProperty(i)) {
+            var settingIn = document.getElementById(settings[i]);
+            if (settingIn && settingIn.value != '' && settingIn.value >= 0) {
+                settingsData[settings[i]] = parseFloat(settingIn.value);
+            }
+        }
+    }
+    socket.emit('apply_settings', settingsData);
+}
+function resetGame() {
+    socket.emit('reset_stats', {});
+}
+function getSessions() {
+    socket.emit('get_sessions', {});
 }
 
 function Init() {
     sessionSummary = document.getElementById('sessionSummary');
     sessionsParent = document.getElementById('sessions');
+    controlsParent = document.getElementById('controls');
     socket.emit('page_initialise', { page: PAGE_TYPE.STATS });
     socket.on('stats_update', Update);
+
+    var applyBtn = document.getElementById('apply');
+    if (applyBtn) {
+        applyBtn.addEventListener('click', applySettings);
+    }
+    var resetBtn = document.getElementById('reset');
+    if (resetBtn) {
+        resetBtn.addEventListener('click', resetGame);
+    }
+    var getBtn = document.getElementById('getSessions');
+    if (getBtn) {
+        getBtn.addEventListener('click', getSessions);
+    }
 }
 
 window.addEventListener('load', Init);

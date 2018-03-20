@@ -39,6 +39,8 @@ svSettings.grid.center = {
 var colors = {
     player: {
         ship: '#DDD',
+        bot: '#F66',
+        net: '#66F',
         thruster: '#BBB'
     },
     asteroid: '#DDD',
@@ -64,6 +66,7 @@ var influenceZones = {
 var DRAW_MOVE = 0, DRAW_LINE = 1;
 var PAGE_TYPE = { GAME: 0, STATS: 1 };
 var OBJECT_TYPE = { OBJECT: 0, PROJECTILE: 1, ASTEROID: 2 };
+var PLY_TYPE = { USER: 0, BOT: 1, NET: 2 };
 
 // Polygon data for visual objects
 var polys = {
@@ -367,6 +370,7 @@ function PlayerShip() {
 
     this.thruster.tilt = 0;
     this.thrust = 0;
+    this.type = PLY_TYPE.USER;
 
     this.pId = null;
     this.pos = {x: 0, y: 0};
@@ -445,21 +449,23 @@ function PlayerShip() {
         ctx.beginPath();
         ctx.arc(camPos.x + svSettings.grid.offset.x + self.pos.x, camPos.y + svSettings.grid.offset.y + self.pos.y, influenceZones.totalRad, 0, pi2);
         ctx.stroke();*/
-
-        ctx.strokeStyle = colors.player.thruster;
-
+        var shipCol = (self.type == PLY_TYPE.USER ? colors.player.ship : (self.type == PLY_TYPE.BOT ? colors.player.bot : colors.player.net));
+        ctx.strokeStyle = shipCol;
         for (let i = 1; i < self.health; i++) {
             ctx.beginPath();
             ctx.arc(camPos.x + svSettings.grid.offset.x + self.pos.x, camPos.y + svSettings.grid.offset.y + self.pos.y, influenceZones.deadzoneRad + 8 * i, 0, pi2);
             ctx.stroke();
         }
+
+        //ctx.strokeStyle = colors.player.thruster;
         
         if (self.thruster.thrust > 0) {
             self.thruster.visObj.ang = self.ang;
             self.thruster.draw();
         }
 
-        ctx.strokeStyle = colors.player.ship;
+        //ctx.strokeStyle = colors.player.ship;
+        //ctx.strokeStyle = shipCol;
         self.ship.ang = self.ang;
         self.ship.draw();
     };

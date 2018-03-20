@@ -40,6 +40,7 @@ var influenceZones = {
     totalRad: 14 + 64
 };
 
+
 const syncTime = shSettings.syncInterval / 1000;
 const deltaTime = shSettings.tickInterval / 1000;
 
@@ -88,6 +89,7 @@ const svSettings = {
 // ---- CONFIG END -----
 
 var PAGE_TYPE = { GAME: 0, STATS: 1 };
+var PLY_TYPE = { USER: 0, BOT: 1, NET: 2 };
 var OBJECT_TYPE = { OBJECT: 0, PROJECTILE: 1, ASTEROID: 2 };
 
 const responses = {
@@ -236,14 +238,14 @@ function Stats() {
 
     self.sessions = {};
 
-    this.addSession = function(uId, pId, nickname, isBot) {
+    this.addSession = function(uId, pId, nickname, plyType) {
         self.sessions[uId] = {
             id: uId,
             pId: pId,
             spawns: -1,
             instances: {},
             name: nickname,
-            bot: isBot,
+            type: plyType,
             start: Date.now(),
             end: null
         };
@@ -281,14 +283,49 @@ function Stats() {
         //console.log('uId: "' + uId + '" session ended at ' + self.sessions[uId].end);
     }
 
-    this.exportData = function() {
-        var activeSessions = [], totalSessions = 0, shotsFired = [];
+    this.exportSummary = function() {
+        var activeSessions = 0, totalSessions = 0, shotsFired = 0;
         for (const i in self.sessions) {
             if (self.sessions.hasOwnProperty(i)) {
                 totalSessions++;
                 if (self.sessions[i].end == null) {
-                    activeSessions.push(self.sessions[i]);
+                    activeSessions++;
                 }
+                for (const j in self.sessions[i].instances) {
+                    if (self.sessions[i].instances.hasOwnProperty(j)) {
+                        shotsFired += self.sessions[i].instances[j].hits.length;
+                    }
+                }
+            }
+        }
+        var activePlayers = 0, activeBots = 0, activeNets = 0;
+        for (const i in activeSessions) {
+            if (activeSessions.hasOwnProperty(i)) {
+                if (activeSessions[i].type == PLY_TYPE.BOT) {
+                    activeBots++;
+                }
+                else if (activeSessions[i].type == PLY_TYPE.NET) {
+                    activeNets++;
+                }
+                else {
+                    activePlayers++;
+                }
+            }
+        }
+        return {
+            totalSessions: totalSessions,
+            activeSessions: activeSessions,
+            activePlayers: activePlayers,
+            activeBots: activeBots,
+            activeNets: activeNets,
+            totalShotsHit: shotsFired,
+        };
+    }
+
+    this.exportData = function() {
+        var shotsFired = [];
+        for (const i in self.sessions) {
+            if (self.sessions.hasOwnProperty(i)) {
                 for (const j in self.sessions[i].instances) {
                     if (self.sessions[i].instances.hasOwnProperty(j)) {
                         for (const k in self.sessions[i].instances[j].hits) {
@@ -298,17 +335,6 @@ function Stats() {
                             }
                         }
                     }
-                }
-            }
-        }
-        var activePlayers = [], activeBots = [];
-        for (const i in activeSessions) {
-            if (activeSessions.hasOwnProperty(i)) {
-                if (activeSessions[i].bot) {
-                    activeBots.push(activeSessions[i]);
-                }
-                else {
-                    activePlayers.push(activeSessions[i]);
                 }
             }
         }
@@ -337,14 +363,7 @@ function Stats() {
                 }
             }
         }
-        return {
-            totalSessions: totalSessions,
-            activeSessions: activeSessions.length,
-            activePlayers: activePlayers.length,
-            activeBots: activeBots.length,
-            totalShotsHit: shotsFired.length,
-            sessions: sessionData,
-        };
+        return sessionData;
     }
 }
 
@@ -547,21 +566,33 @@ function Asteroid() {
 var clients = {};
 var gameObjects = {};
 
-for (var i = 0; i < 16; i++) {
+
+var statSets = { nets: 8, bots: 4, health: 4, asteroids: 16, fireRate: 0.25 };
+
+function SpawnAsteroid() {
     var asteroid = new Asteroid();
     asteroid.obj.pos.x = (Math.random() * 2 - 1) * shSettings.grid.center.x;
     asteroid.obj.pos.y = (Math.random() * 2 - 1) * shSettings.grid.center.y;
     gameObjects[asteroid.oId] = asteroid;
-}/*
-for (var i = 0; i < 1; i++) {
-    var asteroid = new Asteroid();
-    asteroid.obj.pos.x = 0;
-    asteroid.obj.pos.y = 128;
-    gameObjects[asteroid.oId] = asteroid;
-}*/
-for (let i = 0; i < 32; i++) {
+}
+function SpawnBot() {
     var newBot = new Bot();
     clients[newBot.pId] = newBot;
+}
+function SpawnNet() {
+    var newBot = new Bot();
+    newBot.type = PLY_TYPE.NET;
+    clients[newBot.pId] = newBot;
+}
+
+for (var i = 0; i < statSets.asteroids; i++) {
+    SpawnAsteroid();
+}
+for (let i = 0; i < statSets.bots; i++) {
+    SpawnBot();
+}
+for (let i = 0; i < statSets.nets; i++) {
+    SpawnNet();
 }
 
 function systemLog(message, tag = '') {
@@ -572,7 +603,7 @@ function systemLog(message, tag = '') {
 function broadcastSysMsg(msg) {
     var sendData = {message: msg};
     for (var key in clients) {
-        if (clients.hasOwnProperty(key) && !clients[key].bot) {
+        if (clients.hasOwnProperty(key) && clients[key].type == PLY_TYPE.USER) {
             clients[key].socket.emit('system_message', sendData);
         }
     }
@@ -582,7 +613,7 @@ function broadcastSysMsg(msg) {
 function broadcastExcluded(msg, excludedId) {
     var sendData = {message: msg};
     for (var key in clients) {
-        if (clients.hasOwnProperty(key) && !clients[key].bot && key != excludedId) {
+        if (clients.hasOwnProperty(key) && clients[key].type == PLY_TYPE.USER && key != excludedId) {
             clients[key].socket.emit('system_message', sendData);
         }
     }
@@ -592,7 +623,7 @@ function broadcastExcluded(msg, excludedId) {
 function broadcastMessage(sender, msg) {
     var sendData = {senderNick: sender.nickname, message: msg};
     for (var key in clients) {
-        if (clients.hasOwnProperty(key) && !clients[key].bot) {
+        if (clients.hasOwnProperty(key) && clients[key].type == PLY_TYPE.USER) {
             clients[key].socket.emit('chat_message', sendData);
         }
     }
@@ -675,7 +706,7 @@ function Tick() {
 
         for (var i in clients) {
             if (clients.hasOwnProperty(i)) {
-                if (clients[i].loggedIn && !clients[i].bot) {
+                if (clients[i].loggedIn && clients[i].type == PLY_TYPE.USER) {
                     var tmp = plyData[clients[i].pId];
                     delete plyData[clients[i].pId];
                     clients[i].updatePlayer({user: clients[i].collateHostData(), plys: plyData, objs: objData});
@@ -692,11 +723,11 @@ setInterval(Tick, shSettings.tickInterval);
 function ClientVars(sck) {
     var self = this;
 
-    this.bot = false;
+    this.type = PLY_TYPE.USER;
     this.alive = false;
     this.health = 0;
     if (sck == null) {
-        this.bot = true;
+        this.type = PLY_TYPE.BOT;
     }
     this.pId = GeneratePlayerId();
     this.uId = null;
@@ -707,7 +738,7 @@ function ClientVars(sck) {
         pos: {x: 0, y: 0},
         vel: {x: 0, y: 0},
         ang: 0,
-        fireTimer: svSettings.projectile.fireRate,
+        fireTimer: statSets.fireRate,
         fireReady: false
     };
     this.sent = {
@@ -719,17 +750,17 @@ function ClientVars(sck) {
     this.newSession = function() {
         self.uId = uuidv4();
         self.loggedIn = true;
-        stats.addSession(self.uId, self.pId, self.nickname, self.bot);
+        stats.addSession(self.uId, self.pId, self.nickname, self.type);
     }
 
     // Create log method 
     this.log = function(message, tag = '') {
         if (tag != '') { tag = '<' + tag + '> '; }
-        console.log(GetTime() + ' [SOCKET.IO] ' + tag + message + (!self.bot ? ' {' + self.socket.request.connection.remoteAddress + ':' + self.socket.request.connection.remotePort + '}' : '{BOT}'));
+        console.log(GetTime() + ' [SOCKET.IO] ' + tag + message + (self.type == PLY_TYPE.USER  ? ' {' + self.socket.request.connection.remoteAddress + ':' + self.socket.request.connection.remotePort + '}' : '{BOT}'));
     };
 
     this.respawn = function() {
-        self.health = 4;
+        self.health = statSets.health;
         self.alive = true;
         self.ship.pos.x = (Math.random() * 2 - 1) * shSettings.grid.center.x;
         self.ship.pos.y = (Math.random() * 2 - 1) * shSettings.grid.center.y;
@@ -753,7 +784,7 @@ function ClientVars(sck) {
 
         broadcastExcluded(self.nickname + ' was killed by ' + clients[killerId].nickname, self.pId);
 
-        if (!self.bot) {
+        if (self.type == PLY_TYPE.USER) {
             self.socket.emit('update_death', { killer: clients[killerId].nickname, kId:  killerId});
         }
 
@@ -784,7 +815,7 @@ function ClientVars(sck) {
     // -- LOGIN --
     this.nickname = null;
     this.loginAttempt = function(data) {
-        if (!self.bot && !self.loggedIn) {
+        if (self.type == PLY_TYPE.USER && !self.loggedIn) {
             var loginResponse = responses.login.error, loginSuccess = false;
             if (data.nick.length < svSettings.login.minNickLength) {
                 loginResponse = responses.login.tooShort;
@@ -838,7 +869,7 @@ function ClientVars(sck) {
     var lastMessageTime = Date.now() - shSettings.chatSpamTime;
     // Chat message recieved
     this.chatRecieved = function(data) {
-        if (!self.bot && self.loggedIn) {
+        if (self.type == PLY_TYPE.USER && self.loggedIn) {
             if (lastMessageTime + shSettings.chatSpamTime <= Date.now()) {
                 self.log(data.message, 'CHAT');
                 broadcastMessage(self, data.message);
@@ -914,7 +945,7 @@ function ClientVars(sck) {
     }
 
     this.collateDroneData = function() { 
-        return { tarAng: self.ship.tarAng, thrust: self.ship.thrust, pos: self.ship.pos, vel: self.ship.vel, ang: self.ship.ang, pId: self.pId, health: self.health };
+        return { tarAng: self.ship.tarAng, thrust: self.ship.thrust, pos: self.ship.pos, vel: self.ship.vel, ang: self.ship.ang, pId: self.pId, health: self.health, type: self.type };
     }
 
     this.fireProjectile = function() {
@@ -927,12 +958,12 @@ function ClientVars(sck) {
     }
 
     this.playerUpdate = function(data) {
-        if (!self.bot && self.isActive()) {
+        if (self.type == PLY_TYPE.USER && self.isActive()) {
             // Recieve client information about their input velocities and maybe camera position
             self.ship.tarAng = data.tarAng;
             self.ship.thrust = data.thrust;
             if (data.hasOwnProperty('fire') && self.ship.fireReady) {
-                self.ship.fireTimer = svSettings.projectile.fireRate;
+                self.ship.fireTimer = statSets.fireRate;
                 self.ship.fireReady = false;
                 // Fire a projectile
                 self.fireProjectile();
@@ -941,7 +972,7 @@ function ClientVars(sck) {
     }
 
     this.updatePlayer = function(data) {
-        if (!self.bot && self.loggedIn) {
+        if (self.type == PLY_TYPE.USER && self.loggedIn) {
             // Send the client all new object positions, new object information, new player positions, etc.
             self.socket.emit('update_player', data);
         }
@@ -953,7 +984,7 @@ function ClientVars(sck) {
     }
 
     this.attemptQuit = function() {
-        if (!self.bot && self.loggedIn) {
+        if (self.type == PLY_TYPE.USER && self.loggedIn) {
             self.loggedIn = false;
             broadcastExcluded(self.nickname + ' has disconnected.', self.pId);
             stats.endSession(self.uId);
@@ -962,12 +993,12 @@ function ClientVars(sck) {
     }
     
     this.attemptRespawn = function() {
-        if (!self.bot && self.loggedIn && !self.alive) {
+        if (self.type == PLY_TYPE.USER && self.loggedIn && !self.alive) {
             self.respawn();
         }
     }
 
-    if (!self.bot) {
+    if (self.type == PLY_TYPE.USER) {
         this.socket.on('disconnect', self.disconnect);
         this.initSettings();
         this.socket.on('login_attempt', self.loginAttempt);
@@ -988,18 +1019,33 @@ function Bot() {
     this.nickname = 'Bot ' + self.pId;
     this.newSession();
     this.respawn();
+    self.respawnTimeout = null;
+
+    this.oldRespawn = this.respawn;
+    this.respawn = function() {
+        self.respawnTimeout = null;
+        self.oldRespawn();
+    }
 
     this.clKill = this.kill;
     this.kill = function(killerId) {
         self.clKill(killerId);
-        setTimeout(self.respawn, 2000);
+        self.respawnTimeout = setTimeout(self.respawn, 2000);
     }
+
+    this.oldDestroy = this.destroy;
+    this.destroy = function() {
+        if (self.respawnTimeout) {
+            clearTimeout(self.respawnTimeout);
+        }
+        self.oldDestroy();
+    } 
 
     self.clTick = this.tick;
     this.tick = function(realDeltaTime) {
         if (self.alive) {
             if (self.ship.fireReady) {
-                self.ship.fireTimer = svSettings.projectile.fireRate;
+                self.ship.fireTimer = statSets.fireRate;
                 self.ship.fireReady = false;
                 self.fireProjectile();
             }
@@ -1073,17 +1119,132 @@ function StatsUser(sck) {
         self.destroy();
     }
     self.socket.on('disconnect', self.disconnect);
+
+    // Update Settings
+    this.applySettings = function(data) {
+        console.log('<STATS> Applying new settings!');
+        for (const i in data) {
+            if (data.hasOwnProperty(i) && statSets.hasOwnProperty(i)) {
+                if ((i == 'nets' || i == 'bots') && statSets[i] != data[i]) {
+                    if (statSets[i] < data[i]) {
+                        for (; statSets[i] < data[i]; statSets[i]++) {
+                            if (i == 'nets') {
+                                SpawnNet();
+                            }
+                            else if (i == 'bots') {
+                                SpawnBot();
+                            }
+                        }
+                    }
+                    else if (statSets[i] > data[i]) {
+                        for (const j in clients) {
+                            if (clients.hasOwnProperty(j)) {
+                                if (clients[j].type == PLY_TYPE.NET && i == 'nets' || clients[j].type == PLY_TYPE.BOT && i == 'bots') {
+                                    var cl = clients[j];
+                                    delete clients[j];
+                                    cl.destroy();
+                                    statSets[i]--;
+                                    if (statSets[i] <= data[i]) {
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                else if (i == 'asteroids' && statSets[i] != data[i]) {
+                    if (statSets[i] < data[i]) {
+                        for (; statSets[i] < data[i]; statSets[i]++) {
+                            SpawnAsteroid();
+                        }
+                    }
+                    else if (statSets[i] > data[i]) {
+                        for (const j in gameObjects) {
+                            if (gameObjects.hasOwnProperty(j)) {
+                                if (gameObjects[j].type == OBJECT_TYPE.ASTEROID) {
+                                    var asteroid = gameObjects[j];
+                                    delete gameObjects[j];
+                                    asteroid.destroy();
+                                    statSets[i]--;
+                                    if (statSets[i] <= data[i]) {
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                statSets[i] = data[i];
+            }
+        }
+        BroadcastSettings();
+    }
+    self.socket.on('apply_settings', self.applySettings);
+
+    self.resetStats = function(data) {
+        for (const i in clients) {
+            if (clients.hasOwnProperty(i)) {
+                var cl = clients[i];
+                delete clients[i];
+                if (cl.type == PLY_TYPE.USER) {
+                    cl.socket.disconnect();
+                }
+                cl.destroy();
+            }
+        }
+        clients = {};
+        
+        for (const i in gameObjects) {
+            if (gameObjects.hasOwnProperty(i)) {
+                var go = gameObjects[i];
+                delete gameObjects[i];
+                go.destroy();
+            }
+        }
+        gameObjects = {};
+
+        stats.sessions = {};
+
+        for (var i = 0; i < statSets.asteroids; i++) {
+            SpawnAsteroid();
+        }
+        for (let i = 0; i < statSets.bots; i++) {
+            SpawnBot();
+        }
+        for (let i = 0; i < statSets.nets; i++) {
+            SpawnNet();
+        }
+    }
+    self.socket.on('reset_stats', self.resetStats);
+
+    self.getSessions = function(data) {
+        var sessionData = stats.exportData();
+        for (const i in statUsers) {
+            if (statUsers.hasOwnProperty(i)) {
+                statUsers[i].update({sessions: sessionData});
+            }
+        }
+    }
+    self.socket.on('get_sessions', self.getSessions);
 }
 
-function UpdateStatUsers() {
-    var genData = stats.exportData();
+function BroadcastSettings() {
     for (const i in statUsers) {
         if (statUsers.hasOwnProperty(i)) {
-            statUsers[i].update(genData);
+            statUsers[i].update({settings: statSets});
         }
     }
 }
-//setInterval(UpdateStatUsers, 1000);
+
+function UpdateStatUsers() {
+    var sumData = stats.exportSummary();
+    for (const i in statUsers) {
+        if (statUsers.hasOwnProperty(i)) {
+            statUsers[i].update({summary: sumData});
+        }
+    }
+}
+setInterval(UpdateStatUsers, 1000);
 
 // Client connection handler
 function ClientConnected(socket) {
@@ -1100,6 +1261,7 @@ function ClientConnected(socket) {
             console.log('Stats connected');
             statUsers[su.sId] = su;
             UpdateStatUsers();
+            su.update({settings: statSets});
         }
         socket.removeListener('page_initialise', self.pageInit);
     }

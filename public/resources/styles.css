@@ -49,8 +49,14 @@ canvas { position: absolute; }
 #sessionSummary > h1 { padding: 2px 8px; width: calc(100% - 16px); font-weight: 400; border-bottom: 1px solid #e2e2e2; }
 #sessionSummary > .items { padding: 8px; overflow: auto; }
 #sessionSummary > .items > div { width: 200px; float: left; overflow: auto; }
-#sessionSummary > .items > div > h3 { width: 150px; float: left; text-align: right; font-size: 18px; }
-#sessionSummary > .items > div > p { width: 44px; margin-left: 6px; float: left; font-size: 18px; }
+#sessionSummary > .items > div > h3 { width: 130px; float: left; text-align: right; font-size: 18px; }
+#sessionSummary > .items > div > p { width: 64px; margin-left: 6px; float: left; font-size: 18px; }
+
+#controls { padding: 8px; border-top: 1px solid #e2e2e2; overflow: auto; }
+#controls input, #controls span { float: left; }
+#controls > div > input { width: 110px; margin: 2px 0 0 8px; padding: 0; height: 100%; }
+#controls div, #controls button { width: 180px; margin: 0 10px; padding: 0 5px; float: left; font-size: 18px; border: 1px solid #e2e2e2; border-radius: 8px; }
+#controls div { width: auto; }
 
 #sessions > #session { margin: 16px; border: 1px solid #e2e2e2; border-radius: 4px; }
 #sessions > #session { margin: 16px; border: 1px solid #e2e2e2; border-radius: 4px; }
