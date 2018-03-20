@@ -4,6 +4,14 @@ var server = require('http').createServer(app);
 var io = require('socket.io')(server);
 const port = process.env.PORT || 8080;
 const uuidv4 = require('uuid/v4');
+
+var synaptic = require('synaptic'); 
+var Neuron = synaptic.Neuron,
+	Layer = synaptic.Layer,
+	Network = synaptic.Network,
+	Trainer = synaptic.Trainer,
+  Architect = synaptic.Architect;
+
 /*
 var controllers = require('./objects.js');
 
@@ -451,7 +459,7 @@ function Projectile() {
     this.checkCollisions = function() {
         for (const i in clients) {
             if (clients.hasOwnProperty(i)) {
-                if (clients[i].isActive() && clients[i].pId != self.obj.pOwn && Distance(self.pos, clients[i].ship.pos) <= 6 + 8 * clients[i].health) {
+                if (clients[i].isActive() && clients[self.obj.pOwn] != null && clients[i].pId != self.obj.pOwn && Distance(self.pos, clients[i].ship.pos) <= 6 + 8 * clients[i].health) {
                     self.life = 0;
                     stats.projectileHit(clients[self.obj.pOwn].uId, clients[i].uId, self.oId);
                     clients[i].damage(self.obj.pOwn);
@@ -567,7 +575,7 @@ var clients = {};
 var gameObjects = {};
 
 
-var statSets = { nets: 8, bots: 4, health: 4, asteroids: 16, fireRate: 0.25 };
+var statSets = { nets: 8, bots: 8, health: 4, asteroids: 0, fireRate: 0.25 };
 
 function SpawnAsteroid() {
     var asteroid = new Asteroid();
@@ -580,9 +588,8 @@ function SpawnBot() {
     clients[newBot.pId] = newBot;
 }
 function SpawnNet() {
-    var newBot = new Bot();
-    newBot.type = PLY_TYPE.NET;
-    clients[newBot.pId] = newBot;
+    var newNet = new Net();
+    clients[newNet.pId] = newNet;
 }
 
 for (var i = 0; i < statSets.asteroids; i++) {
@@ -719,6 +726,7 @@ function Tick() {
 setInterval(Tick, shSettings.tickInterval);
 
 
+var perceptron = new Architect.Perceptron(34, 42, 1);
 // Client object constructor
 function ClientVars(sck) {
     var self = this;
@@ -959,6 +967,30 @@ function ClientVars(sck) {
 
     this.playerUpdate = function(data) {
         if (self.type == PLY_TYPE.USER && self.isActive()) {
+            // Attempt to train the network using this data
+            var dist = null, target = null;
+            for (const i in clients) {
+                if (clients.hasOwnProperty(i) && clients[i].pId != self.pId && clients[i].alive) {
+                    var tmpDist = Distance(self.ship.pos, clients[i].ship.pos);
+                    if (dist == null || tmpDist < dist) {
+                        dist = tmpDist;
+                        target = { x: clients[i].ship.pos.x - self.ship.pos.x, y: clients[i].ship.pos.y - self.ship.pos.y };;
+                   }
+                }
+            }
+            
+            if (target != null) {
+                /*var targetDist = dist / Math.abs(shSettings.grid.center.x * 2);
+                var closestAng = Math.atan2(target.x, target.y) + Math.PI;
+                if (closestAng > Math.PI) { closestAng -= pi2; }
+                else if (closestAng < -Math.PI) { closestAng += pi2; }
+                closestAng += Math.PI;
+                closestAng /= pi2;*/
+                //perceptron.activate([targetDist, closestAng]);
+                //perceptron.propagate(0.00001, [data.thrust, data.tarAng]);
+
+            }
+
             // Recieve client information about their input velocities and maybe camera position
             self.ship.tarAng = data.tarAng;
             self.ship.thrust = data.thrust;
@@ -1008,7 +1040,6 @@ function ClientVars(sck) {
         this.socket.on('respawn_attempt', self.attemptRespawn);
     }
 }
-
 
 function Bot() {
     ClientVars.call(this);
@@ -1071,6 +1102,8 @@ function Bot() {
                    }
                 }
             }
+
+            
             
             if (target != null) {
                 self.ship.thrust = (Magnitude(target) - influenceZones.deadzoneRad) / influenceZones.influenceRad;
@@ -1082,10 +1115,40 @@ function Bot() {
                 self.ship.tarAng = Math.atan2(target.x, target.y) + Math.PI;
                 if (self.ship.tarAng > Math.PI) { self.ship.tarAng -= pi2; }
                 else if (self.ship.tarAng < -Math.PI) { self.ship.tarAng += pi2; }
+
+                var targetAng = self.ship.tarAng;
+                if (targetAng < 0) { targetAng += pi2; }
+                else if (targetAng > pi2) { targetAng -= pi2; }
+                targetAng /= pi2;
+                var inputs = [];
+                for (const i in clients) {
+                    if (clients.hasOwnProperty(i)) {
+                        if (inputs.length < 34) {
+                            inputs.push(clients[i].ship.pos.x);
+                            inputs.push(clients[i].ship.pos.y);
+                        }
+                    }
+                }
+                while (inputs.length < 34) {
+                    inputs.push(0);
+                }
+                perceptron.activate(inputs);
+                perceptron.propagate(0.3, [targetAng]);
             }
             else {
-                self.ship.thruster.thrust = 0;
+                self.ship.thrust = 0;
             }
+
+            /*if (target != null) {
+                var targetDist = dist / Math.abs(shSettings.grid.center.x * 2);
+                var closestAng = Math.atan2(target.x, target.y) + Math.PI;
+                if (closestAng > Math.PI) { closestAng -= pi2; }
+                else if (closestAng < -Math.PI) { closestAng += pi2; }
+                closestAng += Math.PI;
+                closestAng /= pi2;
+                perceptron.activate([targetDist, closestAng]);
+                perceptron.propagate(0.3, [self.ship.thrust, self.ship.tarAng]);
+            }*/
     
             self.clTick(realDeltaTime);
         }
@@ -1097,6 +1160,69 @@ function Bot() {
     delete self.loginAttempt;
     delete self.chatRecieved;
     delete self.playerUpdate;
+}
+
+function Net() {
+    Bot.call(this);
+
+    var self = this;
+
+    this.loggedIn = true;
+    this.type = PLY_TYPE.NET;
+    this.nickname = 'Net ' + self.pId;
+    this.newSession();
+    this.respawn();
+
+    this.tick = function(dt) {
+        if (self.alive) {
+            if (self.ship.fireReady) {
+                self.ship.fireTimer = statSets.fireRate;
+                self.ship.fireReady = false;
+                self.fireProjectile();
+            }
+    
+            /*var dist = null, target = null;
+            for (const i in clients) {
+                if (clients.hasOwnProperty(i) && clients[i].pId != self.pId && clients[i].alive) {
+                    var tmpDist = Distance(self.ship.pos, clients[i].ship.pos);
+                    if (dist == null || tmpDist < dist) {
+                        dist = tmpDist;
+                        target = { x: clients[i].ship.pos.x - self.ship.pos.x, y: clients[i].ship.pos.y - self.ship.pos.y };;
+                   }
+                }
+            }
+            
+            if (target != null) {
+                var targetDist = dist / Math.abs(shSettings.grid.center.x * 2);
+                var closestAng = Math.atan2(target.x, target.y) + Math.PI;
+                if (closestAng > Math.PI) { closestAng -= pi2; }
+                else if (closestAng < -Math.PI) { closestAng += pi2; }
+                closestAng += Math.PI;
+                closestAng /= pi2;
+
+                var result = perceptron.activate([targetDist, closestAng]);
+                self.ship.thrust = result[0];
+                self.ship.tarAng = (result[1] * pi2) - Math.PI;
+            }*/
+            self.ship.thrust = 1;
+            
+            var inputs = [];
+            for (const i in clients) {
+                if (clients.hasOwnProperty(i)) {
+                    if (inputs.length < 34) {
+                        inputs.push(clients[i].ship.pos.x);
+                        inputs.push(clients[i].ship.pos.y);
+                    }
+                }
+            }
+            while (inputs.length < 34) {
+                inputs.push(0);
+            }
+            self.ship.tarAng = perceptron.activate(inputs)[0];
+    
+            self.clTick(dt);
+        }
+    }
 }
 
 // STATS STUFF
@@ -1268,4 +1394,4 @@ function ClientConnected(socket) {
     socket.on('page_initialise', self.pageInit);
 }
 
-io.on('connection', ClientConnected)
+io.on('connection', ClientConnected);

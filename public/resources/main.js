@@ -439,6 +439,21 @@ function PlayerShip() {
     };
 
     this.draw = function() {
+        if (self.type == PLY_TYPE.NET) {
+            
+            ctx.strokeStyle = colors.rings.inner;
+            ctx.beginPath();
+            ctx.arc(camPos.x + svSettings.grid.offset.x + self.ship.pos.x, camPos.y + svSettings.grid.offset.y + self.ship.pos.y, influenceZones.deadzoneRad, Math.PI * -0.5 - self.ship.tarAng, Math.PI * 1.5 - self.ship.tarAng);
+            ctx.lineTo(camPos.x + svSettings.grid.offset.x + self.ship.pos.x - Math.sin(self.ship.tarAng) * influenceZones.totalRad, camPos.y + svSettings.grid.offset.y + self.ship.pos.y - Math.cos(self.ship.tarAng) * influenceZones.totalRad);
+            ctx.stroke();
+
+            ctx.strokeStyle = colors.rings.outer;
+            ctx.beginPath();
+            ctx.arc(camPos.x + svSettings.grid.offset.x + self.ship.pos.x, camPos.y + svSettings.grid.offset.y + self.ship.pos.y, influenceZones.totalRad, 0, pi2);
+            ctx.stroke();
+
+        }
+
         /*ctx.strokeStyle = colors.rings.inner;
         ctx.beginPath();
         ctx.arc(camPos.x + svSettings.grid.offset.x + self.pos.x, camPos.y + svSettings.grid.offset.y + self.pos.y, influenceZones.deadzoneRad, Math.PI * -0.5 - self.tarAng, Math.PI * 1.5 - self.tarAng);
