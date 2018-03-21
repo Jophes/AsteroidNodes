@@ -1,16 +1,11 @@
 var express = require('express');
+
 var app = express();
 var server = require('http').createServer(app);
 var io = require('socket.io')(server);
 const port = process.env.PORT || 8080;
 const uuidv4 = require('uuid/v4');
 
-var synaptic = require('synaptic'); 
-var Neuron = synaptic.Neuron,
-	Layer = synaptic.Layer,
-	Network = synaptic.Network,
-	Trainer = synaptic.Trainer,
-  Architect = synaptic.Architect;
 
 /*
 var controllers = require('./objects.js');
@@ -48,6 +43,125 @@ var influenceZones = {
     totalRad: 14 + 64
 };
 
+
+
+
+///////////
+var neataptic = require('neataptic');
+var Neat    = neataptic.Neat;
+var Methods = neataptic.methods;
+var Mutations = Methods.mutation;
+var Config  = neataptic.Config;
+var Architect = neataptic.Architect;
+
+var WIDTH            = shSettings.grid.center.x * -2;
+var HEIGHT           = shSettings.grid.center.y * 2;
+var MAX_SPEED        = 5;
+var START_X          = shSettings.grid.center.x;
+var START_Y          = shSettings.grid.center.y;
+var SCORE_RADIUS     = 512;
+
+// GA settings
+var PLAYER_AMOUNT    = 16; //Math.round(2.3e-4 * WIDTH * HEIGHT);
+var ITERATIONS       = 250;
+var MUTATION_RATE    = 0.3;
+var ELITISM          = Math.round(0.1 * PLAYER_AMOUNT);
+
+var USE_TRAINED_POP = false;
+
+var neat;
+
+function initNeat(){
+    neat = new Neat(
+        6, 1,
+        null,
+        {
+            mutation: [
+                Mutations.ADD_NODE,
+                Mutations.SUB_NODE,
+                Mutations.ADD_CONN,
+                Mutations.SUB_CONN,
+                Mutations.MOD_WEIGHT,
+                Mutations.MOD_BIAS,
+                Mutations.MOD_ACTIVATION,
+                Mutations.ADD_GATE,
+                Mutations.SUB_GATE,
+                Mutations.ADD_SELF_CONN,
+                Mutations.SUB_SELF_CONN,
+                Mutations.ADD_BACK_CONN,
+                Mutations.SUB_BACK_CONN
+            ],
+            popsize: PLAYER_AMOUNT,
+            mutationRate: MUTATION_RATE,
+            elitism: ELITISM
+        }
+    );
+  
+    if(USE_TRAINED_POP){
+        neat.population = require('./population').popGet(PLAYER_AMOUNT, neataptic);
+    }
+  
+    // Draw the first graph
+    //drawGraph(neat.population[0].graph($('.best').width()/2, $('.best').height()/2), '.best');
+}
+
+initNeat();
+if (!USE_TRAINED_POP) {
+    neat.mutate();
+}
+
+/** Start the evaluation of the current generation */
+/*function startEvaluation(){
+    players = [];
+    highestScore = 0;
+
+    for(var genome in neat.population){
+        genome = neat.population[genome];
+        //new Player(genome);
+    }
+
+    walker.reset();
+}*/
+  
+  /** End the evaluation of the current generation */
+/*function endEvaluation(){
+    console.log('Generation:', neat.generation, '- average score:', Math.round(neat.getAverage()));
+    console.log('Fittest score:', Math.round(neat.getFittest().score));
+
+    // Networks shouldn't get too big
+    for(var genome in neat.population){
+        genome = neat.population[genome];
+        genome.score -= genome.nodes.length * SCORE_RADIUS / 10;
+    }
+
+    // Sort the population by score
+    neat.sort();
+
+    // Draw the best genome
+    //drawGraph(neat.population[0].graph($('.best').width()/2, $('.best').height()/2), '.best');
+
+    // Init new pop
+    var newPopulation = [];
+
+    // Elitism
+    for(var i = 0; i < neat.elitism; i++){
+        newPopulation.push(neat.population[i]);
+    }
+
+    // Breed the next individuals
+    for(var i = 0; i < neat.popsize - neat.elitism; i++){
+        newPopulation.push(neat.getOffspring());
+    }
+
+    // Replace the old population with the new population
+    neat.population = newPopulation;
+    neat.mutate();
+
+    neat.generation++;
+    startEvaluation();
+}*/
+
+/////////////////////
 
 const syncTime = shSettings.syncInterval / 1000;
 const deltaTime = shSettings.tickInterval / 1000;
@@ -575,7 +689,7 @@ var clients = {};
 var gameObjects = {};
 
 
-var statSets = { nets: 8, bots: 8, health: 4, asteroids: 0, fireRate: 0.25 };
+var statSets = { nets: 8, bots: 16, health: 4, asteroids: 0, fireRate: 0.25 };
 
 function SpawnAsteroid() {
     var asteroid = new Asteroid();
@@ -587,9 +701,15 @@ function SpawnBot() {
     var newBot = new Bot();
     clients[newBot.pId] = newBot;
 }
-function SpawnNet() {
-    var newNet = new Net();
+function SpawnNet(genome) {
+    var newNet = new Net(genome);
     clients[newNet.pId] = newNet;
+}
+function SpawnNets() {
+    for(var genome in neat.population){
+        genome = neat.population[genome];
+        SpawnNet(genome);
+    }
 }
 
 for (var i = 0; i < statSets.asteroids; i++) {
@@ -598,9 +718,61 @@ for (var i = 0; i < statSets.asteroids; i++) {
 for (let i = 0; i < statSets.bots; i++) {
     SpawnBot();
 }
-for (let i = 0; i < statSets.nets; i++) {
-    SpawnNet();
+SpawnNets();
+function endEvaluation(){
+    var avg = neat.getAverage();
+    console.log('Generation:', neat.generation, '- average score:', Math.round(avg));
+    var fittest = neat.getFittest();
+    console.log('Fittest score:', Math.round(fittest.score));
+
+    // Networks shouldn't get too big
+    for(var genome in neat.population){
+        genome = neat.population[genome];
+        genome.score -= genome.nodes.length * SCORE_RADIUS / 10;
+    }
+
+    // Sort the population by score
+    neat.sort();
+
+    // Draw the best genome
+    //drawGraph(neat.population[0].graph($('.best').width()/2, $('.best').height()/2), '.best');
+
+    // Init new pop
+    var newPopulation = [];
+
+    // Elitism
+    for(var i = 0; i < neat.elitism; i++){
+        newPopulation.push(neat.population[i]);
+    }
+
+    // Breed the next individuals
+    for(var i = 0; i < neat.popsize - neat.elitism; i++){
+        newPopulation.push(neat.getOffspring());
+    }
+
+    // Replace the old population with the new population
+    neat.population = newPopulation;
+    neat.mutate();
+
+    neat.generation++;
+    var popCounter = 0;
+    for (const i in clients) {
+        if (clients.hasOwnProperty(i) && clients[i].type == PLY_TYPE.NET) {
+            if (popCounter >= neat.population.length) {
+                break;
+            }
+            else {
+                clients[i].brain = neat.population[popCounter];
+                clients[i].brain.score = 0;
+                popCounter++;
+            }
+        }
+    }
 }
+setInterval(endEvaluation, 2000);
+/*for (let i = 0; i < statSets.nets; i++) {
+    SpawnNet();
+}*/
 
 function systemLog(message, tag = '') {
     if (tag != '') { tag = '<' + tag + '> '; }
@@ -726,7 +898,7 @@ function Tick() {
 setInterval(Tick, shSettings.tickInterval);
 
 
-var perceptron = new Architect.Perceptron(34, 42, 1);
+//var perceptron = new Architect.Perceptron(34, 42, 1);
 // Client object constructor
 function ClientVars(sck) {
     var self = this;
@@ -967,30 +1139,6 @@ function ClientVars(sck) {
 
     this.playerUpdate = function(data) {
         if (self.type == PLY_TYPE.USER && self.isActive()) {
-            // Attempt to train the network using this data
-            var dist = null, target = null;
-            for (const i in clients) {
-                if (clients.hasOwnProperty(i) && clients[i].pId != self.pId && clients[i].alive) {
-                    var tmpDist = Distance(self.ship.pos, clients[i].ship.pos);
-                    if (dist == null || tmpDist < dist) {
-                        dist = tmpDist;
-                        target = { x: clients[i].ship.pos.x - self.ship.pos.x, y: clients[i].ship.pos.y - self.ship.pos.y };;
-                   }
-                }
-            }
-            
-            if (target != null) {
-                /*var targetDist = dist / Math.abs(shSettings.grid.center.x * 2);
-                var closestAng = Math.atan2(target.x, target.y) + Math.PI;
-                if (closestAng > Math.PI) { closestAng -= pi2; }
-                else if (closestAng < -Math.PI) { closestAng += pi2; }
-                closestAng += Math.PI;
-                closestAng /= pi2;*/
-                //perceptron.activate([targetDist, closestAng]);
-                //perceptron.propagate(0.00001, [data.thrust, data.tarAng]);
-
-            }
-
             // Recieve client information about their input velocities and maybe camera position
             self.ship.tarAng = data.tarAng;
             self.ship.thrust = data.thrust;
@@ -1115,41 +1263,10 @@ function Bot() {
                 self.ship.tarAng = Math.atan2(target.x, target.y) + Math.PI;
                 if (self.ship.tarAng > Math.PI) { self.ship.tarAng -= pi2; }
                 else if (self.ship.tarAng < -Math.PI) { self.ship.tarAng += pi2; }
-
-                var targetAng = self.ship.tarAng;
-                if (targetAng < 0) { targetAng += pi2; }
-                else if (targetAng > pi2) { targetAng -= pi2; }
-                targetAng /= pi2;
-                var inputs = [];
-                for (const i in clients) {
-                    if (clients.hasOwnProperty(i)) {
-                        if (inputs.length < 34) {
-                            inputs.push(clients[i].ship.pos.x);
-                            inputs.push(clients[i].ship.pos.y);
-                        }
-                    }
-                }
-                while (inputs.length < 34) {
-                    inputs.push(0);
-                }
-                perceptron.activate(inputs);
-                perceptron.propagate(0.3, [targetAng]);
             }
             else {
                 self.ship.thrust = 0;
             }
-
-            /*if (target != null) {
-                var targetDist = dist / Math.abs(shSettings.grid.center.x * 2);
-                var closestAng = Math.atan2(target.x, target.y) + Math.PI;
-                if (closestAng > Math.PI) { closestAng -= pi2; }
-                else if (closestAng < -Math.PI) { closestAng += pi2; }
-                closestAng += Math.PI;
-                closestAng /= pi2;
-                perceptron.activate([targetDist, closestAng]);
-                perceptron.propagate(0.3, [self.ship.thrust, self.ship.tarAng]);
-            }*/
-    
             self.clTick(realDeltaTime);
         }
     }
@@ -1162,7 +1279,16 @@ function Bot() {
     delete self.playerUpdate;
 }
 
-function Net() {
+function angleToPoint(pos1, pos2) {
+    var dv = {x: pos2.x - pos1.x, y: pos2.y - pos1.y};
+    var d = Magnitude(dv);
+    var a = Math.acos(dv.x / d);
+    return dv.y < 0 ? pi2 - a : a;
+    /*var dv = {x: pos2.x - pos1.x, y: pos2.y - pos1.y};
+    return Math.atan2(dv.y, dv.x);*/
+}
+
+function Net(genome) {
     Bot.call(this);
 
     var self = this;
@@ -1172,6 +1298,51 @@ function Net() {
     this.nickname = 'Net ' + self.pId;
     this.newSession();
     this.respawn();
+    this.brain = genome;
+    this.brain.score = 0;
+    this.target = null;
+
+    this.detect = function() {
+        var dist = null;
+        self.target = null;
+        for (const i in clients) {
+            if (clients.hasOwnProperty(i) && clients[i].pId != self.pId && clients[i].alive) {
+                var tmpDist = Distance(self.ship.pos, clients[i].ship.pos);
+                if (dist == null || tmpDist < dist) {
+                    dist = tmpDist;
+                    self.target = i;
+                }
+            }
+        }
+
+        dist /= Math.sqrt(Math.pow(WIDTH, 2) + Math.pow(HEIGHT, 2));
+        var targetAngle = 0;
+        var tvx = 0;
+        var tvy = 0;
+        if (self.target != null) {
+            targetAngle = angleToPoint(self.ship.pos, clients[self.target].ship.pos) / pi2;
+            tvx = (Clamp(clients[self.target].ship.vel.x, -MAX_SPEED, MAX_SPEED) + MAX_SPEED) / MAX_SPEED;
+            tvy = (Clamp(clients[self.target].ship.vel.y, -MAX_SPEED, MAX_SPEED) + MAX_SPEED) / MAX_SPEED;
+        }
+        var vx = (Clamp(self.ship.vel.x, -MAX_SPEED, MAX_SPEED) + MAX_SPEED) / MAX_SPEED;
+        var vy = (Clamp(self.ship.vel.y, -MAX_SPEED, MAX_SPEED) + MAX_SPEED) / MAX_SPEED;
+
+        // NaN checking
+        targetAngle = isNaN(targetAngle) ? 0 : targetAngle;
+        dist = isNaN(dist) ? 0 : dist;
+
+        return [vx, vy, tvx, tvy, targetAngle, dist];
+    }
+
+    this.score = function() {
+        var dist = 0;
+        if (self.target != null) {
+            dist = Magnitude(self.ship.pos, clients[self.target].ship.pos);
+            if (!isNaN(dist) && dist < SCORE_RADIUS) {
+                self.brain.score += SCORE_RADIUS - dist;
+            }
+        }
+    }
 
     this.tick = function(dt) {
         if (self.alive) {
@@ -1180,47 +1351,18 @@ function Net() {
                 self.ship.fireReady = false;
                 self.fireProjectile();
             }
-    
-            /*var dist = null, target = null;
-            for (const i in clients) {
-                if (clients.hasOwnProperty(i) && clients[i].pId != self.pId && clients[i].alive) {
-                    var tmpDist = Distance(self.ship.pos, clients[i].ship.pos);
-                    if (dist == null || tmpDist < dist) {
-                        dist = tmpDist;
-                        target = { x: clients[i].ship.pos.x - self.ship.pos.x, y: clients[i].ship.pos.y - self.ship.pos.y };;
-                   }
-                }
-            }
-            
-            if (target != null) {
-                var targetDist = dist / Math.abs(shSettings.grid.center.x * 2);
-                var closestAng = Math.atan2(target.x, target.y) + Math.PI;
-                if (closestAng > Math.PI) { closestAng -= pi2; }
-                else if (closestAng < -Math.PI) { closestAng += pi2; }
-                closestAng += Math.PI;
-                closestAng /= pi2;
+            var inputs = self.detect();
+            var output = self.brain.activate(inputs);
 
-                var result = perceptron.activate([targetDist, closestAng]);
-                self.ship.thrust = result[0];
-                self.ship.tarAng = (result[1] * pi2) - Math.PI;
-            }*/
+            if (!isNaN(output)) {
+                self.ship.tarAng = output[0] * pi2;
+            }
+
             self.ship.thrust = 1;
-            
-            var inputs = [];
-            for (const i in clients) {
-                if (clients.hasOwnProperty(i)) {
-                    if (inputs.length < 34) {
-                        inputs.push(clients[i].ship.pos.x);
-                        inputs.push(clients[i].ship.pos.y);
-                    }
-                }
-            }
-            while (inputs.length < 34) {
-                inputs.push(0);
-            }
-            self.ship.tarAng = perceptron.activate(inputs)[0];
     
             self.clTick(dt);
+
+            self.score();
         }
     }
 }
