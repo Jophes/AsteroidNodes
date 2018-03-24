@@ -764,6 +764,7 @@ function endEvaluation(){
             else {
                 clients[i].brain = neat.population[popCounter];
                 clients[i].brain.score = 0;
+                clients[i].respawn(false);
                 popCounter++;
             }
         }
@@ -939,13 +940,15 @@ function ClientVars(sck) {
         console.log(GetTime() + ' [SOCKET.IO] ' + tag + message + (self.type == PLY_TYPE.USER  ? ' {' + self.socket.request.connection.remoteAddress + ':' + self.socket.request.connection.remotePort + '}' : '{BOT}'));
     };
 
-    this.respawn = function() {
+    this.respawn = function(broadcast = true) {
         self.health = statSets.health;
         self.alive = true;
         self.ship.pos.x = (Math.random() * 2 - 1) * shSettings.grid.center.x;
         self.ship.pos.y = (Math.random() * 2 - 1) * shSettings.grid.center.y;
         stats.addInstance(self.uId);
-        broadcastExcluded(self.nickname + ' has respawned.', self.pId);
+        if (broadcast) {
+            broadcastExcluded(self.nickname + ' has respawned.', self.pId);
+        }
     }
 
     this.isActive = function() {
@@ -1201,9 +1204,9 @@ function Bot() {
     self.respawnTimeout = null;
 
     this.oldRespawn = this.respawn;
-    this.respawn = function() {
+    this.respawn = function(broadcast = true) {
         self.respawnTimeout = null;
-        self.oldRespawn();
+        self.oldRespawn(broadcast);
     }
 
     this.clKill = this.kill;
@@ -1288,6 +1291,8 @@ function angleToPoint(pos1, pos2) {
     return Math.atan2(dv.y, dv.x);*/
 }
 
+const SCORES = { HIT: 50, KILL: 100 };
+
 function Net(genome) {
     Bot.call(this);
 
@@ -1301,6 +1306,15 @@ function Net(genome) {
     this.brain = genome;
     this.brain.score = 0;
     this.target = null;
+
+    this.clDamage = this.damage;
+    this.damage = function(killerId) {
+        if (clients[killerId].type == PLY_TYPE.NET) {
+            clients[killerId].brain.score += (clients[killerId].health > 1 ? SCORES.HIT : SCORES.KILL);
+        }
+
+        self.clDamage(killerId);
+    }
 
     this.detect = function() {
         var dist = null;
@@ -1362,7 +1376,7 @@ function Net(genome) {
     
             self.clTick(dt);
 
-            self.score();
+            //self.score();
         }
     }
 }
