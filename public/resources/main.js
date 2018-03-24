@@ -439,7 +439,7 @@ function PlayerShip() {
     };
 
     this.draw = function() {
-        if (self.type == PLY_TYPE.NET) {
+        /*if (self.type == PLY_TYPE.NET) {
             
             ctx.strokeStyle = colors.rings.inner;
             ctx.beginPath();
@@ -452,7 +452,7 @@ function PlayerShip() {
             ctx.arc(camPos.x + svSettings.grid.offset.x + self.ship.pos.x, camPos.y + svSettings.grid.offset.y + self.ship.pos.y, influenceZones.totalRad, 0, pi2);
             ctx.stroke();
 
-        }
+        }*/
 
         /*ctx.strokeStyle = colors.rings.inner;
         ctx.beginPath();

@@ -1369,7 +1369,12 @@ function Net(genome) {
             var output = self.brain.activate(inputs);
 
             if (!isNaN(output)) {
-                self.ship.tarAng = output[0] * pi2;
+                if (output[0] >= Infinity) {
+                    self.brain.score -= 9999;
+                }
+                else {
+                    self.ship.tarAng = output[0];
+                }
             }
 
             self.ship.thrust = 1;
