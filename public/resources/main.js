@@ -978,7 +978,23 @@ function Draw(now) {
 // -- INIT --
 //  --------
 
+var openSurvey, survey, closeSurvey;
+
 function Init() {
+    openSurvey = document.getElementById('openSurvey');
+    openSurvey.addEventListener('click', function() {
+        openSurvey.className = "hidden";
+        survey.className = "";
+        closeSurvey.className = "";
+    });
+    survey = document.getElementById('survey');
+    closeSurvey = document.getElementById('closeSurvey');
+    closeSurvey.addEventListener('click', function() {
+        openSurvey.className = "";
+        survey.className = "hidden";
+        closeSurvey.className = "hidden";
+    });
+
     // Get canvas element
     canvas = document.getElementsByTagName('canvas')[0];
     CanvasResize();

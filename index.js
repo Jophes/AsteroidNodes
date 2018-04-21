@@ -23,7 +23,7 @@ const shSettings = {
     syncInterval: (1000 / 24),
     grid: {
         cell: {width: 96, height: 96},
-        count: {width: 24, height: 24},
+        count: {width: 64, height: 64},
         center: {x: 0, y: 0},
         pos: {x: 0, y: 0},
         offset: {x: 0, y: 0},
@@ -361,7 +361,7 @@ function Stats() {
     self.sessions = {};
 
     this.addSession = function(uId, pId, nickname, plyType) {
-        self.sessions[uId] = {
+        /*self.sessions[uId] = {
             id: uId,
             pId: pId,
             spawns: -1,
@@ -370,38 +370,38 @@ function Stats() {
             type: plyType,
             start: Date.now(),
             end: null
-        };
+        };*/
         //console.log('uId: "' + uId + '" session started at ' + self.sessions[uId].start);
     }
 
     this.addInstance = function(uId) {
-        self.sessions[uId].spawns++;
+        /*self.sessions[uId].spawns++;
         self.sessions[uId].instances[self.sessions[uId].spawns] = {
             hits: [],
             start: Date.now(),
             end: null
-        };
+        };*/
         //console.log('uId: "' + uId + '" instance: "' + self.sessions[uId].spawns + '" started at ' + self.sessions[uId].instances[self.sessions[uId].spawns].start);
     }
 
     this.projectileHit = function(originId, hitId, projId) {
-        self.sessions[originId].instances[self.sessions[originId].spawns].hits.push({
+        /*self.sessions[originId].instances[self.sessions[originId].spawns].hits.push({
             hitUId: hitId, // The uId of the player that got hurt
             hitPos: { x: clients[self.sessions[hitId].pId].ship.pos.x, y: clients[self.sessions[hitId].pId].ship.pos.y }, // Pos of the player that got hurt at the time of getting hurt
             originPos: { x: clients[self.sessions[originId].pId].ship.pos.x, y: clients[self.sessions[originId].pId].ship.pos.y }, // Pos of the player that fired the projectile at the time of hit
             projPos: { x: gameObjects[projId].pos.x, y: gameObjects[projId].pos.y },
             time: Date.now()
-        });
+        });*/
         //console.log('Projecitle hit player: "' + self.sessions[hitId].name + '" fired from: "' + self.sessions[originId].name + '"');
     }
 
     this.endInstance = function(uId) {
-        self.sessions[uId].instances[self.sessions[uId].spawns].end = Date.now();
+        /*self.sessions[uId].instances[self.sessions[uId].spawns].end = Date.now();*/
         //console.log('uId: "' + uId + '" instance: "' + self.sessions[uId].spawns + '" ended at ' + self.sessions[uId].instances[self.sessions[uId].spawns].end);
     }
 
     this.endSession = function(uId) {
-        self.sessions[uId].end = Date.now();
+        /*self.sessions[uId].end = Date.now();*/
         //console.log('uId: "' + uId + '" session ended at ' + self.sessions[uId].end);
     }
 
@@ -770,7 +770,7 @@ function endEvaluation(){
         }
     }
 }
-setInterval(endEvaluation, 2000);
+setInterval(endEvaluation, 10000);
 /*for (let i = 0; i < statSets.nets; i++) {
     SpawnNet();
 }*/
@@ -1291,7 +1291,7 @@ function angleToPoint(pos1, pos2) {
     return Math.atan2(dv.y, dv.x);*/
 }
 
-const SCORES = { HIT: 50, KILL: 100 };
+const SCORES = { HIT: 250 *0, KILL: 500*0 };
 
 function Net(genome) {
     Bot.call(this);
@@ -1320,7 +1320,7 @@ function Net(genome) {
         var dist = null;
         self.target = null;
         for (const i in clients) {
-            if (clients.hasOwnProperty(i) && clients[i].pId != self.pId && clients[i].alive) {
+            if (clients.hasOwnProperty(i) && clients[i].pId != self.pId && clients[i].alive && clients[i].type != PLY_TYPE.NET) {
                 var tmpDist = Distance(self.ship.pos, clients[i].ship.pos);
                 if (dist == null || tmpDist < dist) {
                     dist = tmpDist;
@@ -1381,7 +1381,7 @@ function Net(genome) {
     
             self.clTick(dt);
 
-            //self.score();
+            self.score();
         }
     }
 }
