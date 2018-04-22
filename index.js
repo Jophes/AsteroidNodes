@@ -719,58 +719,64 @@ for (let i = 0; i < statSets.bots; i++) {
     SpawnBot();
 }
 SpawnNets();
-function endEvaluation(){
-    var avg = neat.getAverage();
-    console.log('Generation:', neat.generation, '- average score:', Math.round(avg));
-    var fittest = neat.getFittest();
-    console.log('Fittest score:', Math.round(fittest.score));
+function endEvaluation()
+{
+    if (neat.generation < 35) {
+        var avg = neat.getAverage();
+        console.log('Generation:', neat.generation, '- average score:', Math.round(avg));
+        var fittest = neat.getFittest();
+        console.log('Fittest score:', Math.round(fittest.score));
 
-    // Networks shouldn't get too big
-    for(var genome in neat.population){
-        genome = neat.population[genome];
-        genome.score -= genome.nodes.length * SCORE_RADIUS / 10;
-    }
+        // Networks shouldn't get too big
+        for(var genome in neat.population){
+            genome = neat.population[genome];
+            genome.score -= genome.nodes.length * SCORE_RADIUS / 10;
+        }
 
-    // Sort the population by score
-    neat.sort();
+        // Sort the population by score
+        neat.sort();
 
-    // Draw the best genome
-    //drawGraph(neat.population[0].graph($('.best').width()/2, $('.best').height()/2), '.best');
+        // Draw the best genome
+        //drawGraph(neat.population[0].graph($('.best').width()/2, $('.best').height()/2), '.best');
 
-    // Init new pop
-    var newPopulation = [];
+        // Init new pop
+        var newPopulation = [];
 
-    // Elitism
-    for(var i = 0; i < neat.elitism; i++){
-        newPopulation.push(neat.population[i]);
-    }
+        // Elitism
+        for(var i = 0; i < neat.elitism; i++){
+            newPopulation.push(neat.population[i]);
+        }
 
-    // Breed the next individuals
-    for(var i = 0; i < neat.popsize - neat.elitism; i++){
-        newPopulation.push(neat.getOffspring());
-    }
+        // Breed the next individuals
+        for(var i = 0; i < neat.popsize - neat.elitism; i++){
+            newPopulation.push(neat.getOffspring());
+        }
 
-    // Replace the old population with the new population
-    neat.population = newPopulation;
-    neat.mutate();
+        // Replace the old population with the new population
+        neat.population = newPopulation;
+        neat.mutate();
 
-    neat.generation++;
-    var popCounter = 0;
-    for (const i in clients) {
-        if (clients.hasOwnProperty(i) && clients[i].type == PLY_TYPE.NET) {
-            if (popCounter >= neat.population.length) {
-                break;
-            }
-            else {
-                clients[i].brain = neat.population[popCounter];
-                clients[i].brain.score = 0;
-                clients[i].respawn(false);
-                popCounter++;
+        neat.generation++;
+        var popCounter = 0;
+        for (const i in clients) {
+            if (clients.hasOwnProperty(i) && clients[i].type == PLY_TYPE.NET) {
+                if (popCounter >= neat.population.length) {
+                    break;
+                }
+                else {
+                    clients[i].brain = neat.population[popCounter];
+                    clients[i].brain.score = 0;
+                    clients[i].respawn(false);
+                    popCounter++;
+                }
             }
         }
     }
+    else {
+        clearInterval(evalIntervalId);
+    }
 }
-setInterval(endEvaluation, 30000);
+var evalIntervalId = setInterval(endEvaluation, 30000);
 /*for (let i = 0; i < statSets.nets; i++) {
     SpawnNet();
 }*/
