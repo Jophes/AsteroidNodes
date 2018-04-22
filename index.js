@@ -770,7 +770,7 @@ function endEvaluation(){
         }
     }
 }
-setInterval(endEvaluation, 10000);
+setInterval(endEvaluation, 30000);
 /*for (let i = 0; i < statSets.nets; i++) {
     SpawnNet();
 }*/
@@ -1291,7 +1291,7 @@ function angleToPoint(pos1, pos2) {
     return Math.atan2(dv.y, dv.x);*/
 }
 
-const SCORES = { HIT: 250 *0, KILL: 500*0 };
+const SCORES = { HIT: 250, KILL: 500 };
 
 function Net(genome) {
     Bot.call(this);

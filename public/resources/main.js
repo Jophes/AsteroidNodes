@@ -464,25 +464,28 @@ function PlayerShip() {
         ctx.beginPath();
         ctx.arc(camPos.x + svSettings.grid.offset.x + self.pos.x, camPos.y + svSettings.grid.offset.y + self.pos.y, influenceZones.totalRad, 0, pi2);
         ctx.stroke();*/
-        var shipCol = (self.type == PLY_TYPE.USER ? colors.player.ship : (self.type == PLY_TYPE.BOT ? colors.player.bot : colors.player.net));
-        ctx.strokeStyle = shipCol;
-        for (let i = 1; i < self.health; i++) {
-            ctx.beginPath();
-            ctx.arc(camPos.x + svSettings.grid.offset.x + self.pos.x, camPos.y + svSettings.grid.offset.y + self.pos.y, influenceZones.deadzoneRad + 8 * i, 0, pi2);
-            ctx.stroke();
-        }
+        if (self.type == PLY_TYPE.NET || true) {
+            var shipCol = (self.type == PLY_TYPE.USER ? colors.player.ship : (self.type == PLY_TYPE.BOT ? colors.player.bot : colors.player.net));
+            ctx.strokeStyle = shipCol;
+            for (let i = 1; i < self.health; i++) {
+                ctx.beginPath();
+                ctx.arc(camPos.x + svSettings.grid.offset.x + self.pos.x, camPos.y + svSettings.grid.offset.y + self.pos.y, influenceZones.deadzoneRad + 8 * i, 0, pi2);
+                ctx.stroke();
+            }
 
-        //ctx.strokeStyle = colors.player.thruster;
+            //ctx.strokeStyle = colors.player.thruster;
+            
+            if (self.thruster.thrust > 0) {
+                self.thruster.visObj.ang = self.ang;
+                self.thruster.draw();
+            }
+
+            //ctx.strokeStyle = colors.player.ship;
+            //ctx.strokeStyle = shipCol;
+            self.ship.ang = self.ang;
+            self.ship.draw();
+        }
         
-        if (self.thruster.thrust > 0) {
-            self.thruster.visObj.ang = self.ang;
-            self.thruster.draw();
-        }
-
-        //ctx.strokeStyle = colors.player.ship;
-        //ctx.strokeStyle = shipCol;
-        self.ship.ang = self.ang;
-        self.ship.draw();
     };
 }
 
@@ -575,7 +578,7 @@ function PlayerInput() {
     }
 
     this.draw = function() {
-        ctx.strokeStyle = colors.rings.inner;
+        /*ctx.strokeStyle = colors.rings.inner;
         ctx.beginPath();
         ctx.arc(camPos.x + svSettings.grid.offset.x + self.ship.pos.x, camPos.y + svSettings.grid.offset.y + self.ship.pos.y, influenceZones.deadzoneRad, Math.PI * -0.5 - self.ship.tarAng, Math.PI * 1.5 - self.ship.tarAng);
         ctx.lineTo(camPos.x + svSettings.grid.offset.x + self.ship.pos.x - Math.sin(self.ship.tarAng) * influenceZones.totalRad, camPos.y + svSettings.grid.offset.y + self.ship.pos.y - Math.cos(self.ship.tarAng) * influenceZones.totalRad);
@@ -584,7 +587,7 @@ function PlayerInput() {
         ctx.strokeStyle = colors.rings.outer;
         ctx.beginPath();
         ctx.arc(camPos.x + svSettings.grid.offset.x + self.ship.pos.x, camPos.y + svSettings.grid.offset.y + self.ship.pos.y, influenceZones.totalRad, 0, pi2);
-        ctx.stroke();
+        ctx.stroke();*/
 
         this.ship.draw();
     };
